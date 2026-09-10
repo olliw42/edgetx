@@ -276,3 +276,52 @@ struct ModuleSyncStatus
 };
 
 ModuleSyncStatus& getModuleSyncStatus(uint8_t moduleIdx);
+
+//OW============
+/*
+telemetry/crossfire.cpp
+void processCrossfireTelemetryFrame(uint8_t module, uint8_t* rxBuffer, uint8_t rxBufferCount)
+-> fill inputFifo
+
+pulses/crossfire.cpp
+static void setupPulsesCrossfire(uint8_t module, uint8_t*& p_buf, uint8_t endpoint, int16_t* channels, uint8_t nChannels)
+*/
+
+#define TELEMETRY_MAVLINK_FIFO_SIZE  4*512
+typedef Fifo<uint8_t, TELEMETRY_MAVLINK_FIFO_SIZE> MavlinkFifo;
+
+class MavlinkTelemetryBuffer {
+public:
+  // mimic destination of outputTelemetryBuffe, is that needed??
+  void setDestination(uint8_t _destination)
+  {
+    destination = _destination;
+  }
+
+  bool isModuleDestination(uint8_t module)
+  {
+    return destination != TELEMETRY_ENDPOINT_NONE && destination != TELEMETRY_ENDPOINT_SPORT && (destination >> 2) == module;
+  }
+
+  uint8_t destination = TELEMETRY_ENDPOINT_NONE;
+
+  //-- stats
+  uint32_t rx_packets_cnt = 0;
+  uint32_t rx_bytes_cnt = 0;
+
+	uint32_t rx_frame_len_error = 0;
+	uint32_t rx_payload_len_error = 0;
+	uint32_t rx_data_len_error = 0;
+
+	uint32_t rx_packets_missed = 0;
+	uint8_t rx_seq_last = 0;
+	bool rx_seq_valid = false;
+
+	//-- the buffers
+	MavlinkFifo inputFifo;
+	MavlinkFifo outputFifo;
+};
+
+extern MavlinkTelemetryBuffer mavlinkTelemetryBuffer;
+//OWEND=========
+

@@ -58,6 +58,10 @@
   #include "flysky_ibus.h"
 #endif
 
+//OW============
+MavlinkTelemetryBuffer mavlinkTelemetryBuffer;
+//OWEND=========
+
 struct telemetry_buffer {
   uint8_t buffer[TELEMETRY_RX_PACKET_SIZE];
   uint8_t length;

@@ -146,11 +146,44 @@ uint8_t createCrossfireChannelsFrame(uint8_t moduleIdx, uint8_t * frame, int16_t
   return buf - frame;
 }
 
+//OW============
+uint8_t createCrossfireMavlinkEnvelopeFrame(uint8_t* frame)
+{
+  int len = mavlinkTelemetryBuffer.outputFifo.size();
+  if (len > 30) len = 30; // MAVLink envelope can only hold 58 bytes max, EdgeTx crashes with 58, 30 is ok
+
+  uint8_t* buf = frame;
+  *buf++ = MODULE_ADDRESS;
+  *buf++ = 4 + len; // 1(ID) + 2(chunk & size) + len + 1(CRC)
+  uint8_t* crc_start = buf;
+  *buf++ = 0xAA;
+  static uint8_t seq = 0; // caveat: shared by multiple streams
+  *buf++ = (seq << 4); // chunks
+  seq++;
+  *buf++ = len; // data_size
+
+  uint8_t data = 0;
+  for (int i = 0; i < len; i++) {
+      mavlinkTelemetryBuffer.outputFifo.pop(data);
+      *buf++ = data;
+  }
+
+  *buf++ = crc8(crc_start, 3 + len);
+  return buf - frame;
+}
+//OWEND=========
+
 static void setupPulsesCrossfire(uint8_t module, uint8_t*& p_buf,
                                  uint8_t endpoint, int16_t* channels,
                                  uint8_t nChannels)
 {
 #if defined(LUA)
+//OW============
+  if (mavlinkTelemetryBuffer.destination == endpoint &&
+      mavlinkTelemetryBuffer.outputFifo.size() > 0) { // some data is available for this endpoint
+    p_buf += createCrossfireMavlinkEnvelopeFrame(p_buf);
+  } else
+//OWEND=========
   if (outputTelemetryBuffer.destination == endpoint) {
     auto len = outputTelemetryBuffer.size;
     memcpy(p_buf, outputTelemetryBuffer.data, len);

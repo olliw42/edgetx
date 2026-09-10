@@ -1255,6 +1255,86 @@ static int luaCrossfireTelemetryPush(lua_State* L)
   }
   return 1;
 }
+
+//OW============
+static int luaMavlinkPop(lua_State * L)
+{
+uint8_t data = 0;
+
+  int length = mavlinkTelemetryBuffer.inputFifo.size();
+  if (length > 286) length = 286; // don't let it become too large
+  if (length > 0) {
+   	lua_newtable(L);
+   	for (int i = 1; i <= length; i++) {
+	  mavlinkTelemetryBuffer.inputFifo.pop(data);
+      lua_pushinteger(L, i);
+      lua_pushinteger(L, data);
+      lua_settable(L, -3); // lua_pushinteger(L, data); lua_rawseti(L, -2, i); instead ??
+   	}
+   	return 1;
+  }
+  return 0;
+}
+
+static int luaMavlinkPush(lua_State* L)
+{
+  bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+  bool internal = (moduleState[INTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+
+  if (!internal && !external) { // no module selected
+    lua_pushnil(L);
+    return 1;
+  }
+  if (lua_gettop(L) == 0) { // no parameter
+    lua_pushboolean(L, false);
+    return 1;
+  }
+  luaL_checktype(L, 1, LUA_TTABLE);
+  int length = luaL_len(L, 1);
+  if (!mavlinkTelemetryBuffer.outputFifo.hasSpace(length)) {
+    lua_pushboolean(L, false);
+    return 1;
+  }
+  for (int i = 0; i < length; i++) {
+    lua_rawgeti(L, 1, i + 1);
+    mavlinkTelemetryBuffer.outputFifo.push(luaL_checkinteger(L, -1));
+    // lua_pop(L, 1); // needed or not? adviced to use but not necessary ??
+  }
+  mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
+  lua_pushboolean(L, true);
+  return 1;
+}
+
+static int luaMavlinkStats(lua_State* L)
+{
+  lua_newtable(L);
+  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_cnt);
+  lua_setfield(L, -2, "rx_packets_cnt");
+  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_bytes_cnt);
+  lua_setfield(L, -2, "rx_bytes_cnt");
+  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_frame_len_error);
+  lua_setfield(L, -2, "frame_len_err");
+  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_payload_len_error);
+  lua_setfield(L, -2, "payload_len_err");
+  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_data_len_error);
+  lua_setfield(L, -2, "data_len_err");
+  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_missed);
+  lua_setfield(L, -2, "packets_missed");
+  return 1;
+}
+
+static int luaMavlinkResetStats(lua_State* L)
+{
+  mavlinkTelemetryBuffer.rx_packets_cnt = 0;
+  mavlinkTelemetryBuffer.rx_bytes_cnt = 0;
+  mavlinkTelemetryBuffer.rx_frame_len_error = 0;
+  mavlinkTelemetryBuffer.rx_payload_len_error = 0;
+  mavlinkTelemetryBuffer.rx_data_len_error = 0;
+  mavlinkTelemetryBuffer.rx_packets_missed = 0;
+  mavlinkTelemetryBuffer.inputFifo.clear();
+  return 0;
+}
+//OWEND=========
 #endif
 
 #if defined(GHOST)
@@ -3156,6 +3236,12 @@ LROT_BEGIN(etxlib, NULL, 0)
 #if defined(CROSSFIRE)
   LROT_FUNCENTRY( crossfireTelemetryPop, luaCrossfireTelemetryPop )
   LROT_FUNCENTRY( crossfireTelemetryPush, luaCrossfireTelemetryPush )
+//OW============
+  LROT_FUNCENTRY( mavlinkPop, luaMavlinkPop )
+  LROT_FUNCENTRY( mavlinkPush, luaMavlinkPush )
+  LROT_FUNCENTRY( mavlinkStats, luaMavlinkStats )
+  LROT_FUNCENTRY( mavlinkResetStats, luaMavlinkResetStats )
+//OWEND=========
 #endif
 #if defined(GHOST)
   LROT_FUNCENTRY( ghostTelemetryPop, luaGhostTelemetryPop )

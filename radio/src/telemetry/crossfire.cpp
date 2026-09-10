@@ -414,6 +414,46 @@ void processCrossfireTelemetryFrame(uint8_t module, uint8_t* rxBuffer,
       }
       break;
 
+//OW============
+    case 0xAA: { // MAVLINK_ENVELOPE
+      // rxBuffer[0]: address = 0xEA (that's what mLRS is using)
+      // rxBuffer[1]: len -> uint8_t crsfPayloadLen
+      // rxBuffer[2]: frame id -> uint8_t id = 0xAA
+      // rxBuffer[3]: payload -> total_chunks : 4; current_chunk : 4;
+      // rxBuffer[4]: payload -> data_size
+      // rxBuffer[5]: payload -> data[58]
+      if (rxBuffer[1] + 2 > rxBufferCount) { // Huston
+    	  mavlinkTelemetryBuffer.rx_frame_len_error++;
+    	  break;
+      }
+      if (rxBuffer[4] + 2 + 2 != rxBuffer[1]) { // check if crsfPayloadLen matches data_size
+    	  mavlinkTelemetryBuffer.rx_payload_len_error++;
+    	  break;
+      }
+      if (rxBuffer[4] > 58) { // check data_size
+    	  mavlinkTelemetryBuffer.rx_data_len_error++;
+    	  break;
+      }
+
+      uint8_t seq = rxBuffer[3] >> 4; // check sequence
+      if (mavlinkTelemetryBuffer.rx_seq_valid) {
+        uint8_t expected_seq = mavlinkTelemetryBuffer.rx_seq_last + 1;
+        if (expected_seq >= 16) expected_seq = 0;
+        if (seq != expected_seq) {
+          mavlinkTelemetryBuffer.rx_packets_missed++;
+        }
+      }
+      mavlinkTelemetryBuffer.rx_seq_last = seq;
+      mavlinkTelemetryBuffer.rx_seq_valid = true;
+
+      mavlinkTelemetryBuffer.rx_packets_cnt++;
+      for (uint16_t i = 0; i < rxBuffer[4]; i++) {
+  	      mavlinkTelemetryBuffer.inputFifo.push(rxBuffer[5 + i]);
+  	      mavlinkTelemetryBuffer.rx_bytes_cnt++;
+      }
+      break; }
+//OWEND========
+
 #if defined(LUA)
     default:
       if (id == DEVICE_INFO_ID && rxBuffer[4]== MODULE_ADDRESS) {
