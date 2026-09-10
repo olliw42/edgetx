@@ -164,12 +164,46 @@ uint8_t createCrossfireMavlinkEnvelopeFrame(uint8_t* frame)
 
   uint8_t data = 0;
   for (int i = 0; i < len; i++) {
-      mavlinkTelemetryBuffer.outputFifo.pop(data);
-      *buf++ = data;
+    mavlinkTelemetryBuffer.outputFifo.pop(data);
+    *buf++ = data;
   }
 
   *buf++ = crc8(crc_start, 3 + len);
   return buf - frame;
+}
+
+// simple ""largest accumulated wait" scheduler
+static int8_t selectCrossfireTask(bool do1, bool do2, bool do3)
+{
+const uint8_t weight[3] = {8, 1, 1};
+static uint8_t waited[3] = {0, 0, 0};
+
+  bool ready[3] = { do1, do2, do3 };
+  int8_t selected = -1;
+
+  // select the ready buffer that has waited longest
+  for (int i = 0; i < 3; i++) {
+    if (ready[i] && (selected < 0 || waited[i] > waited[selected])) { // selected < 0 to ensure waited[selected] exists
+      selected = i;
+    }
+  }
+
+  // give all other tasks wait time
+  for (int i = 0; i < 3; i++) {
+    if (i != selected) { waited[i] += weight[i]; }
+  }
+
+  // normalize&sanitize such that lowest waited is 0 and none is > 128
+  uint8_t lowest_wait = 255;
+  for (int i = 0; i < 3; i++) {
+    if (waited[i] < lowest_wait) { lowest_wait = waited[i]; }
+  }
+  for (int i = 0; i < 3; i++) {
+    waited[i] -= lowest_wait;
+    if (waited[i] > 128) { waited[i] = 128; } // ensure it doesn't run out of bounds
+  }
+
+  return selected;
 }
 //OWEND=========
 
@@ -179,17 +213,28 @@ static void setupPulsesCrossfire(uint8_t module, uint8_t*& p_buf,
 {
 #if defined(LUA)
 //OW============
-  if (mavlinkTelemetryBuffer.destination == endpoint &&
-      mavlinkTelemetryBuffer.outputFifo.size() > 0) { // some data is available for this endpoint
+  int8_t sel = selectCrossfireTask(
+      mavlinkTelemetryBuffer.destination == endpoint && mavlinkTelemetryBuffer.outputFifo.size() > 0,
+      outputTelemetryBuffer.destination == endpoint,
+      true // doing that is always desired
+  );
+
+  if (sel == 0) {
     p_buf += createCrossfireMavlinkEnvelopeFrame(p_buf);
   } else
-//OWEND=========
-  if (outputTelemetryBuffer.destination == endpoint) {
+  if (sel == 1) {
     auto len = outputTelemetryBuffer.size;
     memcpy(p_buf, outputTelemetryBuffer.data, len);
     outputTelemetryBuffer.reset();
     p_buf += len;
   } else
+//  if (outputTelemetryBuffer.destination == endpoint) {
+//    auto len = outputTelemetryBuffer.size;
+//    memcpy(p_buf, outputTelemetryBuffer.data, len);
+//    outputTelemetryBuffer.reset();
+//    p_buf += len;
+//  } else
+//OWEND=========
 #endif
   {
     //
