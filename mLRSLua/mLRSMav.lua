@@ -10,7 +10,7 @@
 -- copy script to SCRIPTS\TOOLS folder on OpenTx SD card
 
 local VERSION = {
-    script = '2026-09-10', -- add a '.01' if needed for the day
+    script = '2026-09-11.01', -- add a '.01' if needed for the day
     required_tx_version_int = 10403,  -- 'v1.4.03'
 }
 
@@ -199,70 +199,6 @@ local mavTxState = {
 }
 
 
--- taken with modifications from pymavlink's mavlink_smgs.enciode()
--- it cleverly uses string to do the format conversions
-function mavlink_msgs_encode(msg_struct, data)
-    if msg_struct == nil then error("mavlink_msgs_encode: msg_struct is nil") end
-    if msg_struct.fields == nil then error("mavlink_msgs_encode: msg_struct.fields is nil") end    
-    if data == nil then error("mavlink_msgs_encode: data is nil") end
-    local packString = "<"
-    local packedTable = {}
-    local packedIndex = 1
-    for i,v in ipairs(msg_struct.fields) do
-        if v == nil then error("mavlink_msgs_encode: field[" .. i .. "] is nil") end
-        if v[1] == nil then error("mavlink_msgs_encode: field[" .. i .. "].name is nil") end
-        if v[2] == nil then error("mavlink_msgs_encode: field[" .. i .. "].format is nil") end      
-        if v[3] then
-            packString = (packString .. string.rep(string.sub(v[2], 2), v[3]))
-            local src = data[v[1]] or {}
-            for j = 1, v[3] do
-                packedTable[packedIndex] = src[j] or 0
-                packedIndex = packedIndex + 1
-            end
-        else
-            packString = (packString .. string.sub(v[2], 2))
-            packedTable[packedIndex] = data[v[1]] or 0
-            packedIndex = packedIndex + 1
-        end
-    end
-    return string.pack(packString, table.unpack(packedTable))
-end
-
--- returns a msg_frame
-local function mavlinkEncode(msg_struct, data)
-    local payload_str = mavlink_msgs_encode(msg_struct, data)
-    local len = #payload_str
-    local frame = {}
-    -- MAVLink 2 header
-    frame[1] = 0xFD
-    frame[2] = len
-    frame[3] = 0 -- incompat flags
-    frame[4] = 0 -- compat flags
-    frame[5] = mavTxState.nextSequence
-    frame[6] = mavMySysId
-    frame[7] = mavMyCompId
-    -- 24-bit message ID, little endian
-    frame[8] = msg_struct.id & 0xFF
-    frame[9] = (msg_struct.id >> 8) & 0xFF
-    frame[10] = (msg_struct.id >> 16) & 0xFF
-    -- payload
-    for i = 1, len do
-        --frame[#frame + 1] = string.byte(payload_str, i)
-        frame[10 + i] = string.byte(payload_str, i)
-    end
-    --  CRC
-    local crc = crcInit()
-    for i = 2, #frame do crc = crcAccumulate(frame[i], crc) end
-    crc = crcAccumulate(msg_struct.crc_extra, crc)
-    frame[#frame + 1] = crc & 0xFF
-    frame[#frame + 1] = (crc >> 8) & 0xFF
-    
-    mavTxState.nextSequence = mavTxState.nextSequence + 1 -- prepare for next
-    if mavTxState.nextSequence >= 256 then mavTxState.nextSequence = 0 end
-
-    return frame
-end
-
 
 ----------------------------------------------------------------------
 -- MAVLink tx handling
@@ -354,13 +290,15 @@ end
 
 
 local function mavlinkSend(msg_struct, data)
-    local msg_frame = mavlinkEncode(msg_struct, data)
+    local msg_frame = mavlinkEncode(
+        mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data
+        )
     if msg_frame == nil then return false end
    
     mavTxQueuePush(msg_frame)
     
     mavTxCount = mavTxCount + 1
-    mavTxSize = mavTxSize + msg_frame[2]
+    mavTxSize = mavTxSize + string.byte(msg_frame, 2)
     
     collectgarbage("collect")    
     

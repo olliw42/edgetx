@@ -1276,6 +1276,260 @@ uint8_t data = 0;
   return 0;
 }
 
+// Doing the parser and encoding in Lua, it kind of immediately gives CPU limit error, even
+// when only modest stuff is being done. Not usable. Hence, the workload is done in C.
+
+// taken from fastMavlink library, https://github.com/olliw42/fastmavlink
+#ifdef __GNUC__
+  #pragma GCC push_options
+  #pragma GCC optimize ("O3")
+#endif
+
+// generated from https://crccalc.com/
+static const uint16_t fmav_crc_table_MCRF4XX[256] = {
+    0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
+    0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,
+    0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
+    0x9cc9, 0x8d40, 0xbfdb, 0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876,
+    0x2102, 0x308b, 0x0210, 0x1399, 0x6726, 0x76af, 0x4434, 0x55bd,
+    0xad4a, 0xbcc3, 0x8e58, 0x9fd1, 0xeb6e, 0xfae7, 0xc87c, 0xd9f5,
+    0x3183, 0x200a, 0x1291, 0x0318, 0x77a7, 0x662e, 0x54b5, 0x453c,
+    0xbdcb, 0xac42, 0x9ed9, 0x8f50, 0xfbef, 0xea66, 0xd8fd, 0xc974,
+    0x4204, 0x538d, 0x6116, 0x709f, 0x0420, 0x15a9, 0x2732, 0x36bb,
+    0xce4c, 0xdfc5, 0xed5e, 0xfcd7, 0x8868, 0x99e1, 0xab7a, 0xbaf3,
+    0x5285, 0x430c, 0x7197, 0x601e, 0x14a1, 0x0528, 0x37b3, 0x263a,
+    0xdecd, 0xcf44, 0xfddf, 0xec56, 0x98e9, 0x8960, 0xbbfb, 0xaa72,
+    0x6306, 0x728f, 0x4014, 0x519d, 0x2522, 0x34ab, 0x0630, 0x17b9,
+    0xef4e, 0xfec7, 0xcc5c, 0xddd5, 0xa96a, 0xb8e3, 0x8a78, 0x9bf1,
+    0x7387, 0x620e, 0x5095, 0x411c, 0x35a3, 0x242a, 0x16b1, 0x0738,
+    0xffcf, 0xee46, 0xdcdd, 0xcd54, 0xb9eb, 0xa862, 0x9af9, 0x8b70,
+    0x8408, 0x9581, 0xa71a, 0xb693, 0xc22c, 0xd3a5, 0xe13e, 0xf0b7,
+    0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
+    0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036,
+    0x18c1, 0x0948, 0x3bd3, 0x2a5a, 0x5ee5, 0x4f6c, 0x7df7, 0x6c7e,
+    0xa50a, 0xb483, 0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5,
+    0x2942, 0x38cb, 0x0a50, 0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd,
+    0xb58b, 0xa402, 0x9699, 0x8710, 0xf3af, 0xe226, 0xd0bd, 0xc134,
+    0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7, 0x6e6e, 0x5cf5, 0x4d7c,
+    0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1, 0xa33a, 0xb2b3,
+    0x4a44, 0x5bcd, 0x6956, 0x78df, 0x0c60, 0x1de9, 0x2f72, 0x3efb,
+    0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232,
+    0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a,
+    0xe70e, 0xf687, 0xc41c, 0xd595, 0xa12a, 0xb0a3, 0x8238, 0x93b1,
+    0x6b46, 0x7acf, 0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9,
+    0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
+    0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
+};
+
+static void fmav_crc_accumulate(uint16_t* crc, uint8_t data)
+{
+    *crc = (*crc >> 8) ^ fmav_crc_table_MCRF4XX[(uint8_t)(*crc & 0xff) ^ data];
+}
+
+#ifdef __GNUC__
+  #pragma GCC pop_options
+#endif
+
+static void fmav_crc_init(uint16_t* crc)
+{
+    *crc = 0xFFFF;
+}
+
+// created with help by free ChatGPT
+static bool mavlink_encode_scalar(lua_State *L, const char* format, uint8_t* payload, size_t* payloadLen)
+{
+  switch (format[1]) {
+    case 'b': case 'B':
+      payload[(*payloadLen)++] = (uint8_t)(lua_isnil(L, -1) ? 0 : luaL_checkinteger(L, -1));
+      return true;
+    case 'i': case 'I': {
+      int size = atoi(format + 2);
+      uint64_t value = (uint64_t)(lua_isnil(L, -1) ? 0 : luaL_checkinteger(L, -1));
+      for (int i = 0; i < size; i++) {
+        payload[(*payloadLen)++] = (uint8_t)(value >> (8 * i));
+      }
+      return true;
+    }
+    case 'f': {
+      float value = (float)(lua_isnil(L, -1) ? 0 : luaL_checknumber(L, -1));
+      memcpy(payload + *payloadLen, &value, sizeof(value));
+      *payloadLen += sizeof(value);
+      return true;
+    }
+    case 'd': {
+      double value = (double)(lua_isnil(L, -1) ? 0 : luaL_checknumber(L, -1));
+      memcpy(payload + *payloadLen, &value, sizeof(value));
+      *payloadLen += sizeof(value);
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+// created with help by free ChatGPT
+static bool mavlink_encode_payload(lua_State *L, int msgstructIndex, uint8_t* payload, size_t* payloadLen)
+{
+  lua_getfield(L, msgstructIndex, "fields"); // msg_struct.fields  // index = 1
+  luaL_checktype(L, -1, LUA_TTABLE);
+  int fieldsIndex = lua_gettop(L);
+  int fieldCount = luaL_len(L, fieldsIndex);
+
+  for (int i = 1; i <= fieldCount; i++) {
+
+    // fields[i]
+    lua_rawgeti(L, fieldsIndex, i);
+    luaL_checktype(L, -1, LUA_TTABLE);
+    int fieldIndex = lua_gettop(L);
+
+    // fields[i][1] = field name
+    lua_rawgeti(L, fieldIndex, 1);
+    const char* name = luaL_checkstring(L, -1);
+    lua_pop(L, 1);
+
+    // fields[i][2] = format
+    lua_rawgeti(L, fieldIndex, 2);
+    const char* format = luaL_checkstring(L, -1);
+    lua_pop(L, 1);
+
+    // fields[i][3] = array length, if present
+    lua_rawgeti(L, fieldIndex, 3);
+    int count = lua_isnil(L, -1) ? 1 : luaL_checkinteger(L, -1);
+    lua_pop(L, 1);
+
+    // data[name]
+    lua_getfield(L, msgstructIndex + 1, name); // index = 2
+
+    if (format[0] != '<' || format[1] == '\0') {
+      lua_pop(L, 2); // pop data[name], field
+      lua_pop(L, 1); // pop fields
+      return false;
+    }
+
+    // encode value
+    if (format[1] == 'c') { // fixed-size character array: <cN, e.g. { "some_chars", "<c7" }
+      size_t size = atoi(format + 2);
+      if (*payloadLen + size > 255) {
+        lua_pop(L, 2);
+        lua_pop(L, 1);
+        return false;
+      }
+      size_t stringLen = 0;
+      const char* string = NULL;
+      if (!lua_isnil(L, -1)) { string = luaL_checklstring(L, -1, &stringLen); }
+      for (size_t j = 0; j < size; j++) {
+        payload[(*payloadLen)++] = (string != NULL && j < stringLen) ? (uint8_t)string[j] : 0;
+      }
+    }
+    else if (count > 1) { // array, e.g. { "some_array", "<I2", 4 }
+      if (!lua_isnil(L, -1)) { luaL_checktype(L, -1, LUA_TTABLE); }
+      int arrayIndex = lua_gettop(L);
+      for (int j = 1; j <= count; j++) {
+        if (lua_istable(L, arrayIndex)) {
+          lua_rawgeti(L, arrayIndex, j);
+        } else {
+          lua_pushnil(L);
+        }
+        if (!mavlink_encode_scalar(L, format, payload, payloadLen)) {
+          lua_pop(L, 2);
+          lua_pop(L, 1);
+          return false;
+        }
+        lua_pop(L, 1); // pop array element
+      }
+    }
+    else { // scalar: <f  <d  <b  <B  <i2  <I2  <i4  <I4  <i8  <I8, e.g. { "type", "<B" },
+      if (!mavlink_encode_scalar(L, format, payload, payloadLen)) {
+        lua_pop(L, 2);
+        lua_pop(L, 1);
+        return false;
+      }
+    }
+
+    lua_pop(L, 2); // pop data[name], field
+
+    if (*payloadLen > 255) {
+      lua_pop(L, 1);
+      return false;
+    }
+  }
+
+  lua_pop(L, 1); // pop fields
+
+  return true;
+}
+
+// success: returns Lua string via lua_pushlstring()
+// nil:     error
+static int luaMavlinkEncode(lua_State *L)
+{
+size_t payloadLen = 0;
+uint8_t frame[300];
+size_t frameLen = 0;
+uint16_t crc;
+
+  luaL_checkinteger(L, 1); // seq
+  luaL_checkinteger(L, 2); // sysid
+  luaL_checkinteger(L, 3); // compid
+  luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
+  luaL_checktype(L, 5, LUA_TTABLE); // data
+
+  uint8_t seq = (uint8_t)lua_tointeger(L, 1);
+  uint8_t sysid = (uint8_t)lua_tointeger(L, 2);
+  uint8_t compid = (uint8_t)lua_tointeger(L, 3);
+
+  // msg_struct.id
+  lua_getfield(L, 4, "id");
+  uint32_t msgid = (uint32_t)luaL_checkinteger(L, -1);
+  lua_pop(L, 1);
+
+  // msg_struct.crc_extra
+  lua_getfield(L, 4, "crc_extra");
+  uint8_t crcExtra = (uint8_t)luaL_checkinteger(L, -1);
+  lua_pop(L, 1);
+
+  // encode payload
+  // needs to come here so we know payload length
+  if (!mavlink_encode_payload(L, 4, frame + 10, &payloadLen)) {
+    lua_pushnil(L);
+    return 1;
+  }
+
+  // zero byte truncation
+  while (payloadLen > 0 && frame[10 + payloadLen - 1] == 0) {
+    payloadLen--;
+  }
+
+  // construct MAVLink frame
+  frame[0] = 0xFD; // STX for MAVLink V2
+  frame[1] = (uint8_t)payloadLen; // len
+  frame[2] = 0x00; // incompat flags
+  frame[3] = 0x00; // compat flags
+  frame[4] = seq;
+  frame[5] = sysid;
+  frame[6] = compid;
+  frame[7] = (uint8_t)(msgid & 0xFF);
+  frame[8] = (uint8_t)((msgid >> 8) & 0xFF);
+  frame[9] = (uint8_t)((msgid >> 16) & 0xFF);
+
+  frameLen = 10 + payloadLen;
+
+  // CRC covers everything after the magic byte
+  fmav_crc_init(&crc);
+  for (size_t i = 1; i < frameLen; i++) {
+    fmav_crc_accumulate(&crc, frame[i]);
+  }
+  fmav_crc_accumulate(&crc, crcExtra);
+  frame[frameLen++] = (uint8_t)(crc & 0xFF);
+  frame[frameLen++] = (uint8_t)(crc >> 8);
+
+  lua_pushlstring(L, (const char *)frame, frameLen);
+  return 1;
+}
+
+// true:  successfully queued
+// nil:   no CRSF module selected
+// false: not enough space in output FIFO, or no parameter
 static int luaMavlinkPush(lua_State* L)
 {
   bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
@@ -1289,18 +1543,18 @@ static int luaMavlinkPush(lua_State* L)
     lua_pushboolean(L, false);
     return 1;
   }
-  luaL_checktype(L, 1, LUA_TTABLE);
-  int length = luaL_len(L, 1);
+  size_t length;
+  const uint8_t* data = (const uint8_t*)luaL_checklstring(L, 1, &length);
   if (!mavlinkTelemetryBuffer.outputFifo.hasSpace(length)) {
     lua_pushboolean(L, false);
     return 1;
   }
-  for (int i = 0; i < length; i++) {
-    lua_rawgeti(L, 1, i + 1);
-    mavlinkTelemetryBuffer.outputFifo.push(luaL_checkinteger(L, -1));
-    // lua_pop(L, 1); // needed or not? adviced to use but not necessary ??
+  for (size_t i = 0; i < length; i++) {
+    mavlinkTelemetryBuffer.outputFifo.push(data[i]);
   }
+
   mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
+
   lua_pushboolean(L, true);
   return 1;
 }
@@ -3238,6 +3492,7 @@ LROT_BEGIN(etxlib, NULL, 0)
   LROT_FUNCENTRY( crossfireTelemetryPush, luaCrossfireTelemetryPush )
 //OW============
   LROT_FUNCENTRY( mavlinkPop, luaMavlinkPop )
+  LROT_FUNCENTRY( mavlinkEncode, luaMavlinkEncode )
   LROT_FUNCENTRY( mavlinkPush, luaMavlinkPush )
   LROT_FUNCENTRY( mavlinkStats, luaMavlinkStats )
   LROT_FUNCENTRY( mavlinkResetStats, luaMavlinkResetStats )
