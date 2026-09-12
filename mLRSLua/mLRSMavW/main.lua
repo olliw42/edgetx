@@ -240,7 +240,8 @@ local tlast_1Hz = 0
 
 local function mavlinkProcessIt()
     -- read all MAVLink messages
-    for i = 1, 1 do --while true do -. when in widget mode, EgdeTx can't handle mnore than that !! :(:(
+    --for i = 1, 1 do 
+    while true do -- when in widget mode, EgdeTx can't handle mnore than that !! :(:(
         local msg = mavlinkPop()
         if msg == nil then
             break
@@ -325,13 +326,13 @@ end
 
 
 local function background(widget)
---    mavlinkProcessIt()
+    mavlinkProcessIt()
 end
 
 
 local function refresh(widget, event, touchState)
---    background(widget)
-    mavlinkProcessIt()    
+    background(widget)
+--    mavlinkProcessIt()    
     drawIt(event)
 end
 
