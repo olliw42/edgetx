@@ -1257,83 +1257,231 @@ static int luaCrossfireTelemetryPush(lua_State* L)
 }
 
 //OW============
-static int luaMavlinkPop(lua_State * L)
-{
-uint8_t data = 0;
-
-  int length = mavlinkTelemetryBuffer.inputFifo.size();
-  if (length > 286) length = 286; // don't let it become too large
-  if (length > 0) {
-   	lua_newtable(L);
-   	for (int i = 1; i <= length; i++) {
-	  mavlinkTelemetryBuffer.inputFifo.pop(data);
-      lua_pushinteger(L, i);
-      lua_pushinteger(L, data);
-      lua_settable(L, -3); // lua_pushinteger(L, data); lua_rawseti(L, -2, i); instead ??
-   	}
-   	return 1;
-  }
-  return 0;
-}
-
 // Doing the parser and encoding in Lua, it kind of immediately gives CPU limit error, even
 // when only modest stuff is being done. Not usable. Hence, the workload is done in C.
+// Lua tables are avoided, Lua strings are preferred.
 
-// taken from fastMavlink library, https://github.com/olliw42/fastmavlink
-#ifdef __GNUC__
-  #pragma GCC push_options
-  #pragma GCC optimize ("O3")
-#endif
+//== mavlink Helper ===================
 
-// generated from https://crccalc.com/
-static const uint16_t fmav_crc_table_MCRF4XX[256] = {
-    0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
-    0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7,
-    0x1081, 0x0108, 0x3393, 0x221a, 0x56a5, 0x472c, 0x75b7, 0x643e,
-    0x9cc9, 0x8d40, 0xbfdb, 0xae52, 0xdaed, 0xcb64, 0xf9ff, 0xe876,
-    0x2102, 0x308b, 0x0210, 0x1399, 0x6726, 0x76af, 0x4434, 0x55bd,
-    0xad4a, 0xbcc3, 0x8e58, 0x9fd1, 0xeb6e, 0xfae7, 0xc87c, 0xd9f5,
-    0x3183, 0x200a, 0x1291, 0x0318, 0x77a7, 0x662e, 0x54b5, 0x453c,
-    0xbdcb, 0xac42, 0x9ed9, 0x8f50, 0xfbef, 0xea66, 0xd8fd, 0xc974,
-    0x4204, 0x538d, 0x6116, 0x709f, 0x0420, 0x15a9, 0x2732, 0x36bb,
-    0xce4c, 0xdfc5, 0xed5e, 0xfcd7, 0x8868, 0x99e1, 0xab7a, 0xbaf3,
-    0x5285, 0x430c, 0x7197, 0x601e, 0x14a1, 0x0528, 0x37b3, 0x263a,
-    0xdecd, 0xcf44, 0xfddf, 0xec56, 0x98e9, 0x8960, 0xbbfb, 0xaa72,
-    0x6306, 0x728f, 0x4014, 0x519d, 0x2522, 0x34ab, 0x0630, 0x17b9,
-    0xef4e, 0xfec7, 0xcc5c, 0xddd5, 0xa96a, 0xb8e3, 0x8a78, 0x9bf1,
-    0x7387, 0x620e, 0x5095, 0x411c, 0x35a3, 0x242a, 0x16b1, 0x0738,
-    0xffcf, 0xee46, 0xdcdd, 0xcd54, 0xb9eb, 0xa862, 0x9af9, 0x8b70,
-    0x8408, 0x9581, 0xa71a, 0xb693, 0xc22c, 0xd3a5, 0xe13e, 0xf0b7,
-    0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
-    0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036,
-    0x18c1, 0x0948, 0x3bd3, 0x2a5a, 0x5ee5, 0x4f6c, 0x7df7, 0x6c7e,
-    0xa50a, 0xb483, 0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5,
-    0x2942, 0x38cb, 0x0a50, 0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd,
-    0xb58b, 0xa402, 0x9699, 0x8710, 0xf3af, 0xe226, 0xd0bd, 0xc134,
-    0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7, 0x6e6e, 0x5cf5, 0x4d7c,
-    0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1, 0xa33a, 0xb2b3,
-    0x4a44, 0x5bcd, 0x6956, 0x78df, 0x0c60, 0x1de9, 0x2f72, 0x3efb,
-    0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232,
-    0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a,
-    0xe70e, 0xf687, 0xc41c, 0xd595, 0xa12a, 0xb0a3, 0x8238, 0x93b1,
-    0x6b46, 0x7acf, 0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9,
-    0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
-    0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
-};
+#include "../thirdparty/fastmavlink/c_library/all/all.h"
 
-static void fmav_crc_accumulate(uint16_t* crc, uint8_t data)
+
+//== mavlinkPop(), Parser, Decoder ===================
+
+// created with help by free ChatGPT
+static bool mavlink_decode_scalar(lua_State *L, const char* format, const uint8_t* payload, size_t payloadLen, size_t* payloadPos)
 {
-    *crc = (*crc >> 8) ^ fmav_crc_table_MCRF4XX[(uint8_t)(*crc & 0xff) ^ data];
+  if (format[0] != '<' || format[1] == '\0') {
+    return false;
+  }
+  switch (format[1]) {
+    case 'b': {
+      int8_t value = (*payloadPos < payloadLen) ? (int8_t)payload[*payloadPos] : 0;
+      (*payloadPos)++;
+      lua_pushinteger(L, value);
+      return true;
+    }
+    case 'B': {
+      uint8_t value = (*payloadPos < payloadLen) ? payload[*payloadPos] : 0;
+      (*payloadPos)++;
+      lua_pushinteger(L, value);
+      return true;
+    }
+    case 'i': case 'I': {
+      int size = atoi(format + 2);
+      if (size != 2 && size != 4 && size != 8) {
+        return false;
+      }
+      uint64_t value = 0;
+      for (int i = 0; i < size; i++) {
+        if (*payloadPos < payloadLen) value |= ((uint64_t)payload[*payloadPos]) << (8 * i);
+        (*payloadPos)++;
+      }
+      if (format[1] == 'i') {
+        int64_t signedValue;
+        if (size == 2) {
+          signedValue = (int16_t)value;
+        } else if (size == 4) {
+          signedValue = (int32_t)value;
+        } else {
+          signedValue = (int64_t)value;
+        }
+        lua_pushinteger(L, signedValue);
+      }
+      else {
+        lua_pushinteger(L, (lua_Integer)value);
+      }
+      return true;
+    }
+    case 'f': case 'd': {
+      int size = (format[1] == 'd') ? sizeof(double) : sizeof(float);
+      uint8_t bytes[sizeof(double)];
+      for (int i = 0; i < size; i++) {
+        bytes[i] = (*payloadPos < payloadLen) ? payload[*payloadPos] : 0;
+        (*payloadPos)++;
+      }
+      if (format[1] == 'f') {
+        float value;
+        memcpy(&value, bytes, sizeof(value));
+        lua_pushnumber(L, value);
+      }
+      else {
+        double value;
+        memcpy(&value, bytes, sizeof(value));
+        lua_pushnumber(L, value);
+      }
+      return true;
+    }
+    default:
+      return false;
+  }
 }
 
-#ifdef __GNUC__
-  #pragma GCC pop_options
-#endif
-
-static void fmav_crc_init(uint16_t* crc)
+// created with help by free ChatGPT
+static bool mavlink_decode_payload(lua_State *L, const uint8_t* payload, size_t payloadLen)
 {
-    *crc = 0xFFFF;
+const int resultIndex = 3;
+size_t payloadPos = 0;
+char buffer[256];
+
+  lua_getfield(L, 1, "fields"); // msg_struct.fields
+  luaL_checktype(L, -1, LUA_TTABLE);
+  int fieldsIndex = lua_gettop(L);
+  int fieldCount = luaL_len(L, fieldsIndex);
+  // decode each field
+  for (int i = 1; i <= fieldCount; i++) {
+    // fields[i]
+    lua_rawgeti(L, fieldsIndex, i);
+    luaL_checktype(L, -1, LUA_TTABLE);
+    int fieldIndex = lua_gettop(L);
+    // fields[i][1] = field name
+    lua_rawgeti(L, fieldIndex, 1);
+    const char* name = luaL_checkstring(L, -1);
+    lua_pop(L, 1);
+    // fields[i][2] = format
+    lua_rawgeti(L, fieldIndex, 2);
+    const char* format = luaL_checkstring(L, -1);
+    lua_pop(L, 1);
+    // fields[i][3] = array length, if present
+    lua_rawgeti(L, fieldIndex, 3);
+    int count = lua_isnil(L, -1) ? 1 : luaL_checkinteger(L, -1);
+    lua_pop(L, 1);
+    // data[name]
+    //   not needed?
+    // check valid format
+    if (format[0] != '<' || format[1] == '\0') {
+      lua_pop(L, 2); // pop field, fields
+      return false;
+    }
+    if (format[1] == 'c') { // fixed-size character array: <cN, e.g. { "some_chars", "<c7" }
+      size_t size = atoi(format + 2);
+      if (size > 255) {
+        lua_pop(L, 2);
+        return false;
+      }
+      for (size_t j = 0; j < size; j++) {
+        buffer[j] = (payloadPos < payloadLen) ? (char)payload[payloadPos] : '\0';
+        payloadPos++;
+      }
+      size_t stringLen = size;
+      while (stringLen > 0 && buffer[stringLen - 1] == '\0') { stringLen--; }
+      lua_pushlstring(L, buffer, stringLen);
+      lua_setfield(L, resultIndex, name);
+    }
+    else if (count > 1) { // array, e.g. { "some_array", "<I2", 4 }
+      lua_createtable(L, count, 0);
+      int arrayIndex = lua_gettop(L);
+      for (int j = 1; j <= count; j++) {
+        if (!mavlink_decode_scalar(L, format, payload, payloadLen, &payloadPos)) {
+          lua_pop(L, 2); // pop array, field
+          lua_pop(L, 1); // pop fields
+          return false;
+        }
+        lua_rawseti(L, arrayIndex, j);
+      }
+      lua_setfield(L, resultIndex, name);
+    }
+    else { // scalar: <f  <d  <b  <B  <i2  <I2  <i4  <I4  <i8  <I8, e.g. { "type", "<B" },
+      if (!mavlink_decode_scalar(L, format, payload, payloadLen, &payloadPos)) {
+        lua_pop(L, 2); // pop field, fields
+        return false;
+      }
+      lua_setfield(L, resultIndex, name);
+    }
+    lua_pop(L, 1); // pop field
+  }
+  lua_pop(L, 1); // pop fields
+  return true;
 }
+
+// use:     local payload = mavlinkDecode(msg_struct, msg)
+// success: returns Lua table
+// nil:     error
+static int luaMavlinkDecode(lua_State *L)
+{
+size_t payloadLen = 0;
+
+  luaL_checktype(L, 1, LUA_TTABLE); // msg_struct
+  luaL_checktype(L, 2, LUA_TTABLE); // msg table from mavlinkPop()
+
+  // msg.payload
+  lua_getfield(L, 2, "payload");
+  const uint8_t *payload = (const uint8_t *)luaL_checklstring(L, -1, &payloadLen);
+  lua_pop(L, 1);
+
+  // create return table
+  lua_createtable(L, 0, 8);
+  if (!mavlink_decode_payload(L, payload, payloadLen)) {
+    lua_pop(L, 1); // pop return table
+    lua_pushnil(L);
+    return 1;
+  }
+
+  return 1;
+}
+
+// use:     local msg = mavlinkPop()
+// success: returns Lua table
+// nil:     error
+static int luaMavlinkPop(lua_State *L)
+{
+uint8_t data = 0;
+fmav_message_t msg;
+static fmav_status_t status = {};
+
+  int length = mavlinkTelemetryBuffer.inputFifo.size();
+  for (int i = 1; i <= length; i++) {
+      mavlinkTelemetryBuffer.inputFifo.pop(data);
+      mavlinkTelemetryBuffer.rx_pop_cnt++;
+      // can return RESULT_NONE, RESULT_HAS_HEADER, RESULT_MSGID_UNKNOWN, RESULT_CRC_ERROR, RESULT_OK
+      int8_t res = fmav_parse_to_msg(&msg, &status, data);
+      switch (res) {
+        case FASTMAVLINK_PARSE_RESULT_MSGID_UNKNOWN: res = -1; break;
+        case FASTMAVLINK_PARSE_RESULT_CRC_ERROR: res = -2; break;
+        case FASTMAVLINK_PARSE_RESULT_OK: res = 1; break;
+        default: continue;
+      }
+
+      lua_createtable(L, 0, 7);
+      lua_pushtableinteger(L, "magic", msg.magic);
+      lua_pushtableinteger(L, "len", msg.len);
+      lua_pushtableinteger(L, "seq", msg.seq);
+      lua_pushtableinteger(L, "sysid", msg.sysid);
+      lua_pushtableinteger(L, "compid", msg.compid);
+      lua_pushtableinteger(L, "msgid", msg.msgid);
+
+      lua_pushlstring(L, (const char*)msg.payload, msg.len);
+      lua_setfield(L, -2, "payload");
+
+      lua_pushtableinteger(L, "res", res);
+      return 1;
+  }
+
+  lua_pushnil(L);
+  return 1;
+}
+
+//== mavlinkPush(), ENCODER ===================
 
 // created with help by free ChatGPT
 static bool mavlink_encode_scalar(lua_State *L, const char* format, uint8_t* payload, size_t* payloadLen)
@@ -1374,38 +1522,32 @@ static bool mavlink_encode_payload(lua_State *L, int msgstructIndex, uint8_t* pa
   luaL_checktype(L, -1, LUA_TTABLE);
   int fieldsIndex = lua_gettop(L);
   int fieldCount = luaL_len(L, fieldsIndex);
-
+  // encode each field
   for (int i = 1; i <= fieldCount; i++) {
-
     // fields[i]
     lua_rawgeti(L, fieldsIndex, i);
     luaL_checktype(L, -1, LUA_TTABLE);
     int fieldIndex = lua_gettop(L);
-
     // fields[i][1] = field name
     lua_rawgeti(L, fieldIndex, 1);
     const char* name = luaL_checkstring(L, -1);
     lua_pop(L, 1);
-
     // fields[i][2] = format
     lua_rawgeti(L, fieldIndex, 2);
     const char* format = luaL_checkstring(L, -1);
     lua_pop(L, 1);
-
     // fields[i][3] = array length, if present
     lua_rawgeti(L, fieldIndex, 3);
     int count = lua_isnil(L, -1) ? 1 : luaL_checkinteger(L, -1);
     lua_pop(L, 1);
-
     // data[name]
     lua_getfield(L, msgstructIndex + 1, name); // index = 2
-
+    // check valid format
     if (format[0] != '<' || format[1] == '\0') {
       lua_pop(L, 2); // pop data[name], field
       lua_pop(L, 1); // pop fields
       return false;
     }
-
     // encode value
     if (format[1] == 'c') { // fixed-size character array: <cN, e.g. { "some_chars", "<c7" }
       size_t size = atoi(format + 2);
@@ -1445,17 +1587,13 @@ static bool mavlink_encode_payload(lua_State *L, int msgstructIndex, uint8_t* pa
         return false;
       }
     }
-
     lua_pop(L, 2); // pop data[name], field
-
     if (*payloadLen > 255) {
       lua_pop(L, 1);
       return false;
     }
   }
-
   lua_pop(L, 1); // pop fields
-
   return true;
 }
 
@@ -1559,6 +1697,8 @@ static int luaMavlinkPush(lua_State* L)
   return 1;
 }
 
+//== mavlink Auxiliary ===================
+
 static int luaMavlinkStats(lua_State* L)
 {
   lua_newtable(L);
@@ -1574,6 +1714,8 @@ static int luaMavlinkStats(lua_State* L)
   lua_setfield(L, -2, "data_len_err");
   lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_missed);
   lua_setfield(L, -2, "packets_missed");
+  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_pop_cnt);
+  lua_setfield(L, -2, "rx_pop_cnt");
   return 1;
 }
 
@@ -1585,6 +1727,7 @@ static int luaMavlinkResetStats(lua_State* L)
   mavlinkTelemetryBuffer.rx_payload_len_error = 0;
   mavlinkTelemetryBuffer.rx_data_len_error = 0;
   mavlinkTelemetryBuffer.rx_packets_missed = 0;
+  mavlinkTelemetryBuffer.rx_pop_cnt = 0;
   mavlinkTelemetryBuffer.inputFifo.clear();
   return 0;
 }
@@ -3492,6 +3635,7 @@ LROT_BEGIN(etxlib, NULL, 0)
   LROT_FUNCENTRY( crossfireTelemetryPush, luaCrossfireTelemetryPush )
 //OW============
   LROT_FUNCENTRY( mavlinkPop, luaMavlinkPop )
+  LROT_FUNCENTRY( mavlinkDecode, luaMavlinkDecode )
   LROT_FUNCENTRY( mavlinkEncode, luaMavlinkEncode )
   LROT_FUNCENTRY( mavlinkPush, luaMavlinkPush )
   LROT_FUNCENTRY( mavlinkStats, luaMavlinkStats )

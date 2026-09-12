@@ -317,6 +317,8 @@ public:
 	uint8_t rx_seq_last = 0;
 	bool rx_seq_valid = false;
 
+	uint32_t rx_pop_cnt = 0;
+
 	//-- the buffers
 	MavlinkFifo inputFifo;
 	MavlinkFifo outputFifo;

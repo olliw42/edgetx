@@ -10,7 +10,7 @@
 -- copy script to SCRIPTS\TOOLS folder on OpenTx SD card
 
 local VERSION = {
-    script = '2026-09-11.01', -- add a '.01' if needed for the day
+    script = '2026-09-11.02', -- add a '.01' if needed for the day
     required_tx_version_int = 10403,  -- 'v1.4.03'
 }
 
@@ -63,146 +63,13 @@ local mavMyType = 26 --6 -- MAV_TYPE_GCS
 
 
 ----------------------------------------------------------------------
--- MAVLink Helper
-----------------------------------------------------------------------
-
-local function crcInit()
-    return 0xFFFF
-end    
-
-
-local function crcAccumulate(byte, crc)
-    local tmp = byte ~ (crc & 0xFF)
-    tmp = (tmp ~ (tmp << 4)) & 0xFF
-    crc = (crc >> 8) ~ (tmp << 8) ~ (tmp << 3) ~ (tmp >> 4)
-    return crc & 0xFFFF  
-end
-
-
-----------------------------------------------------------------------
--- MAVLink Parser, only V2
-----------------------------------------------------------------------
-
-local mavRxState = {
-    pos = 0,
-    frameLength = 0,
-    frame = {},
-}
-
-local mavResult = {
-    len = 0,
-    signed = false,
-    seq = 0,
-    sysid = 0,
-    compid = 0,
-    msgid = 0,
-    payload = {},
-    crc_validated = false,
-}
-
-local function mavlinkParserReset()
-    mavRxState.pos = 0
-    mavRxState.frameLength = 0
-    mavRxState.frame = {}
-end
-
-
--- nil: no end of MAVLink frame
--- false: crc error, might be just that extra_crc is not known
--- else: returns a mavResult aka msg
-local function mavlinkParseChar(byte)
-    if type(byte) ~= "number" then error("BAD RX byte: type=" .. tostring(type(byte))) end  
-  
-    if mavRxState.pos == 0 then -- PARSE_STATE_IDLE
-        if byte == 0xFD then -- do only V2 frames
-            mavRxState.pos = 1
-            mavRxState.frame[mavRxState.pos] = byte
-        end
-        return nil
-    end
-
-    mavRxState.pos = mavRxState.pos + 1
-    mavRxState.frame[mavRxState.pos] = byte
-
-    if mavRxState.pos == 2 then -- PARSE_STATE_LEN
-        mavResult.len = byte
-        mavRxState.frameLength = byte + 12
-        return nil
-
-    elseif mavRxState.pos == 3 then -- PARSE_STATE_INCOMPAT_FLAGS
-        mavResult.signed = (byte & 0x01) ~= 0
-        if mavResult.signed then
-            mavRxState.frameLength = mavRxState.frameLength + 13
-        end
-        return nil
-        
-    elseif mavRxState.pos == 4 then -- PARSE_STATE_COMPAT_FLAGS
-        return nil
-    end    
-
-    if mavRxState.pos == 5 then  -- Seq
-        mavResult.seq = byte
-    elseif mavRxState.pos == 6 then -- SysId
-        mavResult.sysid = byte
-    elseif mavRxState.pos == 7 then -- CompId
-        mavResult.compid = byte
-    elseif mavRxState.pos == 8 then -- MsgId 0..7
-        mavResult.msgid = byte
-    elseif mavRxState.pos == 9 then -- MsgId 8..15
-        mavResult.msgid = mavResult.msgid +  byte * 256
-    elseif mavRxState.pos == 10 then -- MsgId 16..23
-        mavResult.msgid = mavResult.msgid + byte * 65536
-        
-    elseif mavRxState.pos >= 11 and mavRxState.pos < 11 + mavResult.len then -- PARSE_STATE_FRAME
-        local payloadPos = mavRxState.pos - 10
-        mavResult.payload[payloadPos] = byte
-    end
-
-    if mavRxState.pos == mavRxState.frameLength then
-        local msg_struct = mavMessages[mavResult.msgid]
-        if not msg_struct then  -- extra_crc not known
-            mavResult.crc_validated = false; 
-            for i = mavResult.len + 1, #mavResult.payload do mavResult.payload[i] = nil end
-            mavlinkParserReset(); 
-            return mavResult
-        end
-
-        local crcEnd = mavRxState.frameLength - 2
-        if mavResult.signed then crcEnd = crcEnd - 13 end
-        local crc = crcInit()
-        for i = 2, crcEnd do crc = crcAccumulate(mavRxState.frame[i], crc) end
-        crc = crcAccumulate(msg_struct.crc_extra, crc)
-        local receivedCrc = mavRxState.frame[crcEnd + 1] + mavRxState.frame[crcEnd + 2] * 256
-        if crc ~= receivedCrc then
-            mavlinkParserReset()
-            return nil
-        end
-        mavResult.crc_validated = true; 
-        
-        -- remove payload bytes left over from a previous, longer MAVLink message
-        for i = mavResult.len + 1, #mavResult.payload do mavResult.payload[i] = nil end
-
-        mavlinkParserReset() -- clear parser for next frame
-        return mavResult
-    end
-
-    return nil
-end
-
-
-----------------------------------------------------------------------
--- MAVLink Encoder, only V2
+-- MAVLink tx handling
 ----------------------------------------------------------------------
 
 local mavTxState = {
     nextSequence = 0
 }
 
-
-
-----------------------------------------------------------------------
--- MAVLink tx handling
-----------------------------------------------------------------------
 
 local mavTxQueue = {}
 
@@ -252,48 +119,64 @@ local mavRxBytes = 0
 local mavRxCount = 0
 local mavRxSize = 0
 local mavRxSeqErrorCount = 0
+local mavRxMsgIdUnknownCount = 0
+local mavRxCrcErrorCount = 0
+
 -- mavlink tx stats
 local mavTxCount = 0
 local mavTxSize = 0
 
+local mavTlast1Hz = 0
 
-local mavlinkHandleFrame -- forward declaration
 
-
-local function mavlinkParsePacket(packet)
-    for i = 1, #packet do
-        mavRxBytes = mavRxBytes + 1
-        local msg = mavlinkParseChar(packet[i])
-        if msg ~= nil then -- full frame received, crc validated, or mayb enot
-            mavRxCount = mavRxCount + 1
-            mavRxSize = mavRxSize + msg.len
+local function mavlinkHandleMsg(msg)
+    mavRxBytes = mavRxBytes + 12 + msg.len
+    mavRxCount = mavRxCount + 1
+    mavRxSize = mavRxSize + msg.len
             
-            if msg.sysid == 1 and msg.compid == 1 then -- do seq check only for autopilot
-                if mavRxLastSequence ~= nil then
-                    local expectedSequence = mavRxLastSequence + 1
-                    if expectedSequence >= 256 then expectedSequence = 0 end
-                    if expectedSequence ~= msg.seq then 
-                        mavRxSeqErrorCount = mavRxSeqErrorCount + 1; 
-                    end
-                end  
-                mavRxLastSequence = msg.seq
-            end    
-            
-debugAdd(string.format("MAV %d/%d seq=%d", msg.sysid, msg.compid, msg.seq))            
-            
-            if msg.crc_validated then -- crc validated
-                mavlinkHandleFrame(msg) -- needs to be defined below
-            end    
-        end
+    if msg.sysid == 1 and msg.compid == 1 then -- do seq check only for autopilot
+        if mavRxLastSequence ~= nil then
+            local expectedSequence = mavRxLastSequence + 1
+            if expectedSequence >= 256 then expectedSequence = 0 end
+            if expectedSequence ~= msg.seq then 
+                mavRxSeqErrorCount = mavRxSeqErrorCount + 1; 
+            end
+        end  
+        mavRxLastSequence = msg.seq
+    end    
+    
+    if msg.res < 0 then 
+        if msg.res == -1 then mavRxMsgIdUnknownCount = mavRxMsgIdUnknownCount + 1 end
+        if msg.res == -2 then mavRxCrcErrorCount = mavRxCrcErrorCount + 1 end
+        return 
     end
+    
+debugAdd(string.format("MAV %d/%d  %d  seq=%d", msg.sysid, msg.compid, msg.msgid, msg.seq))            
+            
+    if msg.msgid == HEARTBEAT.id then
+        local payload = mavlinkDecode(HEARTBEAT, msg)
+        mavMsgListAdd(msg, "HEARTBEAT")
+    elseif msg.msgid == STATUSTEXT.id then     
+        local payload = mavlinkDecode(STATUSTEXT, msg)
+        mavMsgListAdd(msg, "STATUSTEXT")
+    elseif msg.msgid == ATTITUDE.id then     
+        local payload = mavlinkDecode(ATTITUDE, msg)
+        mavMsgListAdd(msg, "ATTITUDE")
+    elseif msg.msgid == VFR_HUD.id then     
+        local payload = mavlinkDecode(VFR_HUD, msg)
+        mavMsgListAdd(msg, "VFR_HUD")
+--    else
+--        mavMsgListAdd(msg, "--")
+    end    
 end
 
 
 local function mavlinkSend(msg_struct, data)
     local msg_frame = mavlinkEncode(
-        mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data
-        )
+        mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data)
     if msg_frame == nil then return false end
+    mavTxState.nextSequence = mavTxState.nextSequence + 1 -- prepare for next
+    if mavTxState.nextSequence >= 256 then mavTxState.nextSequence = 0 end
    
     mavTxQueuePush(msg_frame)
     
@@ -303,34 +186,6 @@ local function mavlinkSend(msg_struct, data)
     collectgarbage("collect")    
     
     return true
-end
-
-
-----------------------------------------------------------------------
--- MAVLink Handlers
-----------------------------------------------------------------------
-local mavTlast1Hz = 0
-
-
--- function definition of local function mavlinkHandleFrame(frame)
-mavlinkHandleFrame = function(msg)
-    
-    if msg.msgid == HEARTBEAT.id then
-        mavMsgListAdd(msg, string.format("HEARTBEAT"))
-        
-    elseif msg.msgid == STATUSTEXT.id then     
-        mavMsgListAdd(msg, string.format("STATUSTEXT"))
-        
-    elseif msg.msgid == ATTITUDE.id then     
-        mavMsgListAdd(msg, string.format("ATTITUDE"))
-        
-    elseif msg.msgid == VFR_HUD.id then     
-        mavMsgListAdd(msg, string.format("VFR_HUD"))
-        
-    else
-        --mavMsgListAdd(msg, "--")
-    end    
-    
 end
 
 
@@ -376,15 +231,16 @@ local tlast_1Hz = 0
 
 
 local function mavlinkProcessIt()
-    -- fetch all packets
+    -- read all MAVLink messages
     while true do
-        local packet = mavlinkPop()
-        if packet == nil then
+--    for i = 1, 1 do
+        local msg = mavlinkPop()
+        if msg == nil then
             break
         end
-        mavlinkParsePacket(packet) 
+        mavlinkHandleMsg(msg)
     end
-    
+
     -- send queued MAVLink messages
     local msg_frame = mavTxQueuePop()
     if msg_frame ~= nil then
@@ -416,15 +272,19 @@ local function Do(event)
     lcd.drawNumber(200, 110, stats.payload_len_err)
     lcd.drawText(5, 130, "data err:")
     lcd.drawNumber(200, 130, stats.data_len_err)
+    lcd.drawText(5, 150, "pops:")
+    lcd.drawNumber(200, 150, stats.rx_pop_cnt)
+    lcd.drawText(300, 150, string.format("(diff %d)", stats.rx_bytes_cnt - stats.rx_pop_cnt))
     
+    lcd.drawText(5, 200, string.format("bytes:  %d   (diff %d)", mavRxBytes, stats.rx_bytes_cnt-mavRxBytes))
+    lcd.drawText(5, 220, string.format("data:    %d  bytes", mavRxSize))
+    lcd.drawText(5, 240, string.format("count:  %d", mavRxCount))
+    lcd.drawText(5, 260, string.format("errors seq:  %d", mavRxSeqErrorCount))
+    lcd.drawText(5, 280, string.format("errors ukn:  %d", mavRxMsgIdUnknownCount))
+    lcd.drawText(5, 300, string.format("errors crc:  %d", mavRxCrcErrorCount))
     
-    lcd.drawText(5, 180, string.format("bytes:  %d   (diff %d)", mavRxBytes, stats.rx_bytes_cnt-mavRxBytes))
-    lcd.drawText(5, 200, string.format("data:    %d  bytes", mavRxSize))
-    lcd.drawText(5, 220, string.format("count:  %d", mavRxCount))
-    lcd.drawText(5, 240, string.format("errors seq:  %d", mavRxSeqErrorCount))
-    
-    lcd.drawText(5, 270, string.format("count:  %d", mavTxCount))
-    lcd.drawText(5, 290, string.format("data:  %d bytes", mavTxSize))
+    lcd.drawText(5, 340, string.format("count:  %d", mavTxCount))
+    lcd.drawText(5, 360, string.format("data:  %d bytes", mavTxSize))
     
     --mavDebugDraw(200, 110)
     mavMsgListDraw(350,5)
