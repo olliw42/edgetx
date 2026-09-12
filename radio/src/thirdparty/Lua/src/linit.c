@@ -47,6 +47,10 @@ extern LROT_TABLE(colorlib);
 extern LROT_TABLE(rotables_meta);
 extern LROT_TABLE(base_func);
 
+//OW============
+extern LROT_TABLE(mavlinklib);
+//OWEND=========
+
 static const ROTable* const _global_symbols[] = {
   LROT_TABLEREF(base_func),
   LROT_TABLEREF(etxlib),
@@ -56,6 +60,9 @@ static const ROTable* const _global_symbols[] = {
 #if defined(COLORLCD)
   LROT_TABLEREF(colorlib),
 #endif
+  //OW============
+  LROT_TABLEREF(mavlinklib),
+  //OWEND=========
   NULL,
 };
 
