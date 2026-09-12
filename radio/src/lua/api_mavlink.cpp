@@ -8,28 +8,22 @@ OlliW42
 #include <ctype.h>
 #include <stdio.h>
 #include "edgetx.h"
-#include "stamp.h"
+#include "lua_states.h"
 #include "lua_api.h"
-#include "api_filesystem.h"
-#include "hal/module_port.h"
-#include "hal/adc_driver.h"
-#include "hal/rotary_encoder.h"
-#include "switches.h"
-#include "input_mapping.h"
 
 #include "telemetry/crossfire.h"
-
-// Doing the parser and encoding in Lua, it kind of immediately gives CPU limit error, even
-// when only modest stuff is being done. Not usable. Hence, the workload is done in C.
-// Lua tables are avoided, Lua strings are preferred.
-
-//== mavlink Helper ===================
 
 #include "../thirdparty/fastmavlink/c_library/all/all.h"
 
 
-//== mavlinkPop(), Parser, Decoder ===================
+// Doing the parser and encoding in Lua, it kind of immediately gives CPU limit error,
+// even when only modest stuff is being done. Not usable. Hence, the workload is done in C.
+// Lua tables are avoided, Lua strings are preferred.
 
+
+//============================================================
+//== mavlinkPop(), Parser, Decoder
+//============================================================
 
 // created with help by free ChatGPT
 static bool mavlink_decode_scalar(lua_State *L, const char* format, const uint8_t* payload, size_t payloadLen, size_t* payloadPos)
@@ -246,8 +240,9 @@ static fmav_status_t status = {};
 }
 
 
-//== mavlinkPush(), ENCODER ===================
-
+//============================================================
+//== mavlinkPush(), ENCODER
+//============================================================
 
 // created with help by free ChatGPT
 static bool mavlink_encode_scalar(lua_State *L, const char* format, uint8_t* payload, size_t* payloadLen)
@@ -507,8 +502,9 @@ static int luaMavlinkPush(lua_State* L)
 }
 
 
-//== mavlink Auxiliary ===================
-
+//============================================================
+//== mavlink Auxiliary
+//============================================================
 
 static int luaMavlinkStats(lua_State* L)
 {
@@ -542,8 +538,9 @@ static int luaMavlinkResetStats(lua_State* L)
 }
 
 
-//== mavlink Legacy ===================
-
+//============================================================
+//== mavlink Legacy
+//============================================================
 
 static int luaMavlinkPopPacket(lua_State * L)
 {
@@ -594,6 +591,10 @@ static int luaMavlinkPushPacket(lua_State* L)
   return 1;
 }
 
+
+//============================================================
+//== mavlink Lua table
+//============================================================
 
 extern "C" {
 LROT_BEGIN(mavlinklib, NULL, 0)
