@@ -172,16 +172,22 @@ end
 
 
 local function mavlinkSend(msg_struct, data)
+--[[  
     local msg_frame = mavlinkEncode(
         mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data)
     if msg_frame == nil then return false end
+    
+    mavTxQueuePush(msg_frame) --]]
+   
+    local res = mavlinkPush(
+        mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data)
+    if res == nil then return false end
+    
     mavTxState.nextSequence = mavTxState.nextSequence + 1 -- prepare for next
     if mavTxState.nextSequence >= 256 then mavTxState.nextSequence = 0 end
-   
-    mavTxQueuePush(msg_frame)
     
     mavTxCount = mavTxCount + 1
-    mavTxSize = mavTxSize + string.byte(msg_frame, 2)
+    --mavTxSize = mavTxSize + string.byte(msg_frame, 2)
     
     collectgarbage("collect")    
     

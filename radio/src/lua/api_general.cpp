@@ -1449,8 +1449,8 @@ uint8_t data = 0;
 fmav_message_t msg;
 static fmav_status_t status = {};
 
-  int length = mavlinkTelemetryBuffer.inputFifo.size();
-  for (int i = 1; i <= length; i++) {
+  int available = mavlinkTelemetryBuffer.inputFifo.size();
+  for (int i = 1; i <= available; i++) {
       mavlinkTelemetryBuffer.inputFifo.pop(data);
       mavlinkTelemetryBuffer.rx_pop_cnt++;
       // can return RESULT_NONE, RESULT_HAS_HEADER, RESULT_MSGID_UNKNOWN, RESULT_CRC_ERROR, RESULT_OK
@@ -1597,20 +1597,13 @@ static bool mavlink_encode_payload(lua_State *L, int msgstructIndex, uint8_t* pa
   return true;
 }
 
-// success: returns Lua string via lua_pushlstring()
-// nil:     error
-static int luaMavlinkEncode(lua_State *L)
+
+static bool mavlink_encode_frame(lua_State *L, uint8_t* frame, size_t* frameLen)
 {
 size_t payloadLen = 0;
-uint8_t frame[300];
-size_t frameLen = 0;
 uint16_t crc;
 
-  luaL_checkinteger(L, 1); // seq
-  luaL_checkinteger(L, 2); // sysid
-  luaL_checkinteger(L, 3); // compid
-  luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
-  luaL_checktype(L, 5, LUA_TTABLE); // data
+  *frameLen = 0;
 
   uint8_t seq = (uint8_t)lua_tointeger(L, 1);
   uint8_t sysid = (uint8_t)lua_tointeger(L, 2);
@@ -1629,8 +1622,7 @@ uint16_t crc;
   // encode payload
   // needs to come here so we know payload length
   if (!mavlink_encode_payload(L, 4, frame + 10, &payloadLen)) {
-    lua_pushnil(L);
-    return 1;
+    return false;
   }
 
   // zero byte truncation
@@ -1650,21 +1642,45 @@ uint16_t crc;
   frame[8] = (uint8_t)((msgid >> 8) & 0xFF);
   frame[9] = (uint8_t)((msgid >> 16) & 0xFF);
 
-  frameLen = 10 + payloadLen;
+  *frameLen = 10 + payloadLen;
 
   // CRC covers everything after the magic byte
   fmav_crc_init(&crc);
-  for (size_t i = 1; i < frameLen; i++) {
+  for (size_t i = 1; i < *frameLen; i++) {
     fmav_crc_accumulate(&crc, frame[i]);
   }
   fmav_crc_accumulate(&crc, crcExtra);
-  frame[frameLen++] = (uint8_t)(crc & 0xFF);
-  frame[frameLen++] = (uint8_t)(crc >> 8);
+  frame[(*frameLen)++] = (uint8_t)(crc & 0xFF);
+  frame[(*frameLen)++] = (uint8_t)(crc >> 8);
+
+  return true;
+}
+
+// use:     local msg_frame = mavlinkEncode(seq, sysid, compid, msg_struct, data)
+// success: returns Lua string via lua_pushlstring()
+// nil:     error
+static int luaMavlinkEncode(lua_State *L)
+{
+uint8_t frame[300];
+size_t frameLen = 0;
+
+  luaL_checkinteger(L, 1); // seq
+  luaL_checkinteger(L, 2); // sysid
+  luaL_checkinteger(L, 3); // compid
+  luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
+  luaL_checktype(L, 5, LUA_TTABLE); // data
+
+  if (!mavlink_encode_frame(L, frame, &frameLen)) {
+    lua_pushnil(L);
+    return 1;
+  }
 
   lua_pushlstring(L, (const char *)frame, frameLen);
   return 1;
 }
 
+// use:   mavlinkPush(msg_frame) or
+//        mavlinkPush(seq, sysid, compid, msg_struct, data)
 // true:  successfully queued
 // nil:   no CRSF module selected
 // false: not enough space in output FIFO, or no parameter
@@ -1677,18 +1693,42 @@ static int luaMavlinkPush(lua_State* L)
     lua_pushnil(L);
     return 1;
   }
-  if (lua_gettop(L) == 0) { // no parameter
+
+  int nargs = lua_gettop(L);
+  if (nargs == 1) { // used as mavlinkPush(msg_frame)
+    luaL_checklstring(L, 1, NULL); // msg_frame
+  }
+  else if (nargs == 5) { // used as mavlinkPush(seq, sysid, compid, msg_struct, data)
+    luaL_checkinteger(L, 1); // seq
+    luaL_checkinteger(L, 2); // sysid
+    luaL_checkinteger(L, 3); // compid
+    luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
+    luaL_checktype(L, 5, LUA_TTABLE); // data
+  }
+  else {
     lua_pushboolean(L, false);
     return 1;
   }
-  size_t length;
-  const uint8_t* data = (const uint8_t*)luaL_checklstring(L, 1, &length);
-  if (!mavlinkTelemetryBuffer.outputFifo.hasSpace(length)) {
-    lua_pushboolean(L, false);
-    return 1;
-  }
-  for (size_t i = 0; i < length; i++) {
-    mavlinkTelemetryBuffer.outputFifo.push(data[i]);
+
+  size_t len;
+  if (nargs == 5) {
+    uint8_t data[300];
+    if (!mavlink_encode_frame(L, data, &len) || !mavlinkTelemetryBuffer.outputFifo.hasSpace(len)) {
+      lua_pushboolean(L, false);
+      return 1;
+    }
+    for (size_t i = 0; i < len; i++) {
+      mavlinkTelemetryBuffer.outputFifo.push(data[i]);
+    }
+  } else {
+    const uint8_t* data = (const uint8_t*)luaL_checklstring(L, 1, &len);
+    if (!mavlinkTelemetryBuffer.outputFifo.hasSpace(len)) {
+      lua_pushboolean(L, false);
+      return 1;
+    }
+    for (size_t i = 0; i < len; i++) {
+      mavlinkTelemetryBuffer.outputFifo.push(data[i]);
+    }
   }
 
   mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
