@@ -1,4 +1,4 @@
---local toolName = "TNS|mLRS Mavlink GCS|TNE"
+--local toolName = "TNS|mLRS MavTelem|TNE"
 ----------------------------------------------------------------------
 -- Copyright (c) MLRS project
 -- GPL3

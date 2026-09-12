@@ -1731,6 +1731,57 @@ static int luaMavlinkResetStats(lua_State* L)
   mavlinkTelemetryBuffer.inputFifo.clear();
   return 0;
 }
+
+//== mavlink Legacy ===================
+
+static int luaMavlinkPopPacket(lua_State * L)
+{
+uint8_t data = 0;
+
+  int length = mavlinkTelemetryBuffer.inputFifo.size();
+  if (length > 286) length = 286; // don't let it become too large
+  if (length > 0) {
+    lua_newtable(L);
+    for (int i = 1; i <= length; i++) {
+    mavlinkTelemetryBuffer.inputFifo.pop(data);
+      lua_pushinteger(L, i);
+      lua_pushinteger(L, data);
+      lua_settable(L, -3); // lua_pushinteger(L, data); lua_rawseti(L, -2, i); instead ??
+    }
+    return 1;
+  }
+  return 0;
+}
+
+static int luaMavlinkPushPacket(lua_State* L)
+{
+  bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+  bool internal = (moduleState[INTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+
+  if (!internal && !external) { // no module selected
+    lua_pushnil(L);
+    return 1;
+  }
+  if (lua_gettop(L) == 0) { // no parameter
+    lua_pushboolean(L, false);
+    return 1;
+  }
+  luaL_checktype(L, 1, LUA_TTABLE);
+  int length = luaL_len(L, 1);
+  if (!mavlinkTelemetryBuffer.outputFifo.hasSpace(length)) {
+    lua_pushboolean(L, false);
+    return 1;
+  }
+  for (int i = 0; i < length; i++) {
+    lua_rawgeti(L, 1, i + 1);
+    mavlinkTelemetryBuffer.outputFifo.push(luaL_checkinteger(L, -1));
+    // lua_pop(L, 1); // needed or not? adviced to use but not necessary ??
+  }
+  mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
+  lua_pushboolean(L, true);
+  return 1;
+}
+
 //OWEND=========
 #endif
 
@@ -3640,6 +3691,8 @@ LROT_BEGIN(etxlib, NULL, 0)
   LROT_FUNCENTRY( mavlinkPush, luaMavlinkPush )
   LROT_FUNCENTRY( mavlinkStats, luaMavlinkStats )
   LROT_FUNCENTRY( mavlinkResetStats, luaMavlinkResetStats )
+  LROT_FUNCENTRY( mavlinkPopPacket, luaMavlinkPopPacket )
+  LROT_FUNCENTRY( mavlinkPushPacket, luaMavlinkPushPacket )
 //OWEND=========
 #endif
 #if defined(GHOST)
