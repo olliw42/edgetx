@@ -31,6 +31,7 @@ static bool mavlink_decode_scalar(lua_State *L, const char* format, const uint8_
   if (format[0] != '<' || format[1] == '\0') {
     return false;
   }
+
   switch (format[1]) {
     case 'b': {
       int8_t value = (*payloadPos < payloadLen) ? (int8_t)payload[*payloadPos] : 0;
@@ -106,31 +107,40 @@ char buffer[256];
   luaL_checktype(L, -1, LUA_TTABLE);
   int fieldsIndex = lua_gettop(L);
   int fieldCount = luaL_len(L, fieldsIndex);
+
   // decode each field
   for (int i = 1; i <= fieldCount; i++) {
+
     // fields[i]
     lua_rawgeti(L, fieldsIndex, i);
     luaL_checktype(L, -1, LUA_TTABLE);
     int fieldIndex = lua_gettop(L);
+
     // fields[i][1] = field name
     lua_rawgeti(L, fieldIndex, 1);
     const char* name = luaL_checkstring(L, -1);
     lua_pop(L, 1);
+
     // fields[i][2] = format
     lua_rawgeti(L, fieldIndex, 2);
     const char* format = luaL_checkstring(L, -1);
     lua_pop(L, 1);
+
     // fields[i][3] = array length, if present
     lua_rawgeti(L, fieldIndex, 3);
     int count = lua_isnil(L, -1) ? 1 : luaL_checkinteger(L, -1);
     lua_pop(L, 1);
+
     // data[name]
     //   not needed?
+
     // check valid format
     if (format[0] != '<' || format[1] == '\0') {
       lua_pop(L, 2); // pop field, fields
       return false;
     }
+
+    // decode value
     if (format[1] == 'c') { // fixed-size character array: <cN, e.g. { "some_chars", "<c7" }
       size_t size = atoi(format + 2);
       if (size > 255) {
@@ -167,6 +177,7 @@ char buffer[256];
       lua_setfield(L, resultIndex, name);
     }
     lua_pop(L, 1); // pop field
+
   }
   lua_pop(L, 1); // pop fields
   return true;
@@ -212,8 +223,10 @@ static fmav_status_t status = {};
   int available = mavlinkTelemetryBuffer.inputFifo.size();
   for (int i = 1; i <= available; i++) {
       mavlinkTelemetryBuffer.inputFifo.pop(c);
+
       // can return RESULT_NONE, RESULT_HAS_HEADER, RESULT_MSGID_UNKNOWN, RESULT_CRC_ERROR, RESULT_OK
       int8_t res = fmav_parse_to_msg(&msg, &status, c);
+
       switch (res) {
         case FASTMAVLINK_PARSE_RESULT_MSGID_UNKNOWN: res = -1; break;
         case FASTMAVLINK_PARSE_RESULT_OK: res = 1; break;
@@ -284,32 +297,40 @@ static bool mavlink_encode_payload(lua_State *L, int msgstructIndex, uint8_t* pa
   luaL_checktype(L, -1, LUA_TTABLE);
   int fieldsIndex = lua_gettop(L);
   int fieldCount = luaL_len(L, fieldsIndex);
+
   // encode each field
   for (int i = 1; i <= fieldCount; i++) {
+
     // fields[i]
     lua_rawgeti(L, fieldsIndex, i);
     luaL_checktype(L, -1, LUA_TTABLE);
     int fieldIndex = lua_gettop(L);
+
     // fields[i][1] = field name
     lua_rawgeti(L, fieldIndex, 1);
     const char* name = luaL_checkstring(L, -1);
     lua_pop(L, 1);
+
     // fields[i][2] = format
     lua_rawgeti(L, fieldIndex, 2);
     const char* format = luaL_checkstring(L, -1);
     lua_pop(L, 1);
+
     // fields[i][3] = array length, if present
     lua_rawgeti(L, fieldIndex, 3);
     int count = lua_isnil(L, -1) ? 1 : luaL_checkinteger(L, -1);
     lua_pop(L, 1);
+
     // data[name]
     lua_getfield(L, msgstructIndex + 1, name); // index = 2
+
     // check valid format
     if (format[0] != '<' || format[1] == '\0') {
       lua_pop(L, 2); // pop data[name], field
       lua_pop(L, 1); // pop fields
       return false;
     }
+
     // encode value
     if (format[1] == 'c') { // fixed-size character array: <cN, e.g. { "some_chars", "<c7" }
       size_t size = atoi(format + 2);
@@ -354,6 +375,7 @@ static bool mavlink_encode_payload(lua_State *L, int msgstructIndex, uint8_t* pa
       lua_pop(L, 1);
       return false;
     }
+
   }
   lua_pop(L, 1); // pop fields
   return true;

@@ -278,6 +278,7 @@ struct ModuleSyncStatus
 ModuleSyncStatus& getModuleSyncStatus(uint8_t moduleIdx);
 
 //OW============
+#if defined(CROSSFIRE)
 /*
 telemetry/crossfire.cpp
 void processCrossfireTelemetryFrame(uint8_t module, uint8_t* rxBuffer, uint8_t rxBufferCount)
@@ -287,8 +288,9 @@ pulses/crossfire.cpp
 static void setupPulsesCrossfire(uint8_t module, uint8_t*& p_buf, uint8_t endpoint, int16_t* channels, uint8_t nChannels)
 */
 
-#define TELEMETRY_MAVLINK_FIFO_SIZE  4*512
-typedef Fifo<uint8_t, TELEMETRY_MAVLINK_FIFO_SIZE> MavlinkFifo;
+#define TELEMETRY_MAVLINK_INPUT_FIFO_SIZE   4*512 // maybe not enough when direct path to MPmQGC exists
+#define TELEMETRY_MAVLINK_OUTPUT_FIFO_SIZE  4*512 // probably more than enough
+
 
 class MavlinkTelemetryBuffer {
 public:
@@ -318,10 +320,12 @@ public:
 	bool rx_seq_valid = false;
 
 	//-- the buffers
-	MavlinkFifo inputFifo;
-	MavlinkFifo outputFifo;
+	Fifo<uint8_t, TELEMETRY_MAVLINK_INPUT_FIFO_SIZE> inputFifo;
+  Fifo<uint8_t, TELEMETRY_MAVLINK_OUTPUT_FIFO_SIZE> outputFifo;
 };
 
 extern MavlinkTelemetryBuffer mavlinkTelemetryBuffer;
+
+#endif
 //OWEND=========
 

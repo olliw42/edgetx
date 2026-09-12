@@ -172,7 +172,7 @@ uint8_t createCrossfireMavlinkEnvelopeFrame(uint8_t* frame)
   return buf - frame;
 }
 
-// simple ""largest accumulated wait" scheduler
+// simple "largest accumulated wait" scheduler
 static int8_t selectCrossfireTask(bool do1, bool do2, bool do3)
 {
 const uint8_t weight[3] = {8, 1, 1};

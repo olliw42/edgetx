@@ -59,7 +59,9 @@
 #endif
 
 //OW============
+#if defined(CROSSFIRE)
 MavlinkTelemetryBuffer mavlinkTelemetryBuffer;
+#endif
 //OWEND=========
 
 struct telemetry_buffer {
