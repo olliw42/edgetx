@@ -10,7 +10,7 @@ local widgetName = "mLRSMavW"
 -- copy script to SCRIPTS\TOOLS folder on OpenTx SD card
 
 local VERSION = {
-    script = '2026-09-11.01', -- add a '.01' if needed for the day
+    script = '2026-09-11.02', -- add a '.01' if needed for the day
     required_tx_version_int = 10403,  -- 'v1.4.03'
 }
 
@@ -124,7 +124,6 @@ local mavRxCount = 0
 local mavRxSize = 0
 local mavRxSeqErrorCount = 0
 local mavRxMsgIdUnknownCount = 0
-local mavRxCrcErrorCount = 0
 
 -- mavlink tx stats
 local mavTxCount = 0
@@ -150,8 +149,7 @@ local function mavlinkHandleMsg(msg)
     end    
     
     if msg.res < 0 then 
-        if msg.res == -1 then mavRxMsgIdUnknownCount = mavRxMsgIdUnknownCount + 1 end
-        if msg.res == -2 then mavRxCrcErrorCount = mavRxCrcErrorCount + 1 end
+        mavRxMsgIdUnknownCount = mavRxMsgIdUnknownCount + 1
         return 
     end
     
@@ -176,16 +174,22 @@ end
 
 
 local function mavlinkSend(msg_struct, data)
+--[[  
     local msg_frame = mavlinkEncode(
         mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data)
     if msg_frame == nil then return false end
+    
+    mavTxQueuePush(msg_frame) --]]
+   
+    local res = mavlinkPush(
+        mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data)
+    if res == nil then return false end
+    
     mavTxState.nextSequence = mavTxState.nextSequence + 1 -- prepare for next
     if mavTxState.nextSequence >= 256 then mavTxState.nextSequence = 0 end
-   
-    mavTxQueuePush(msg_frame)
     
     mavTxCount = mavTxCount + 1
-    mavTxSize = mavTxSize + string.byte(msg_frame, 2)
+    --mavTxSize = mavTxSize + string.byte(msg_frame, 2)
     
     collectgarbage("collect")    
     
@@ -270,24 +274,20 @@ local function drawIt(event)
     lcd.drawNumber(200, 110, stats.payload_len_err)
     lcd.drawText(5, 130, "data err:")
     lcd.drawNumber(200, 130, stats.data_len_err)
-    lcd.drawText(5, 150, "pops:")
-    lcd.drawNumber(200, 150, stats.rx_pop_cnt)
-    lcd.drawText(300, 150, string.format("(diff %d)", stats.rx_bytes_cnt - stats.rx_pop_cnt))
     
-    lcd.drawText(5, 200, string.format("bytes:  %d   (diff %d)", mavRxBytes, stats.rx_bytes_cnt-mavRxBytes))
-    lcd.drawText(5, 220, string.format("data:    %d  bytes", mavRxSize))
-    lcd.drawText(5, 240, string.format("count:  %d", mavRxCount))
-    lcd.drawText(5, 260, string.format("errors seq:  %d", mavRxSeqErrorCount))
-    lcd.drawText(5, 280, string.format("errors ukn:  %d", mavRxMsgIdUnknownCount))
-    lcd.drawText(5, 300, string.format("errors crc:  %d", mavRxCrcErrorCount))
+    lcd.drawText(5, 220, string.format("bytes:  %d   (diff %d)", mavRxBytes, stats.rx_bytes_cnt-mavRxBytes))
+    lcd.drawText(5, 240, string.format("data:    %d  bytes", mavRxSize))
+    lcd.drawText(5, 260, string.format("count:  %d", mavRxCount))
+    lcd.drawText(5, 280, string.format("errors seq:  %d", mavRxSeqErrorCount))
+    lcd.drawText(5, 300, string.format("errors ukn:  %d", mavRxMsgIdUnknownCount))
     
-    lcd.drawText(5, 340, string.format("count:  %d", mavTxCount))
-    lcd.drawText(5, 360, string.format("data:  %d bytes", mavTxSize))
+    lcd.drawText(5, 360, string.format("count:  %d", mavTxCount))
+    lcd.drawText(5, 380, string.format("data:  %d bytes", mavTxSize))
     
     --mavDebugDraw(200, 110)
     mavMsgListDraw(350,5)
 
-    debugDraw(350, 180)
+    debugDraw(450, 180)
     
     
     local tnow_10ms = getTime()

@@ -1415,7 +1415,7 @@ char buffer[256];
 }
 
 // use:     local payload = mavlinkDecode(msg_struct, msg)
-// success: returns Lua table
+// success: returns payload as Lua table
 // nil:     error
 static int luaMavlinkDecode(lua_State *L)
 {
@@ -1441,23 +1441,21 @@ size_t payloadLen = 0;
 }
 
 // use:     local msg = mavlinkPop()
-// success: returns Lua table
+// success: returns Lua table, payload is Lua string
 // nil:     error
 static int luaMavlinkPop(lua_State *L)
 {
-uint8_t data = 0;
-fmav_message_t msg;
+uint8_t c = 0;
+static fmav_message_t msg = {};
 static fmav_status_t status = {};
 
   int available = mavlinkTelemetryBuffer.inputFifo.size();
   for (int i = 1; i <= available; i++) {
-      mavlinkTelemetryBuffer.inputFifo.pop(data);
-      mavlinkTelemetryBuffer.rx_pop_cnt++;
+      mavlinkTelemetryBuffer.inputFifo.pop(c);
       // can return RESULT_NONE, RESULT_HAS_HEADER, RESULT_MSGID_UNKNOWN, RESULT_CRC_ERROR, RESULT_OK
-      int8_t res = fmav_parse_to_msg(&msg, &status, data);
+      int8_t res = fmav_parse_to_msg(&msg, &status, c);
       switch (res) {
         case FASTMAVLINK_PARSE_RESULT_MSGID_UNKNOWN: res = -1; break;
-        case FASTMAVLINK_PARSE_RESULT_CRC_ERROR: res = -2; break;
         case FASTMAVLINK_PARSE_RESULT_OK: res = 1; break;
         default: continue;
       }
@@ -1597,7 +1595,6 @@ static bool mavlink_encode_payload(lua_State *L, int msgstructIndex, uint8_t* pa
   return true;
 }
 
-
 static bool mavlink_encode_frame(lua_State *L, uint8_t* frame, size_t* frameLen)
 {
 size_t payloadLen = 0;
@@ -1657,7 +1654,7 @@ uint16_t crc;
 }
 
 // use:     local msg_frame = mavlinkEncode(seq, sysid, compid, msg_struct, data)
-// success: returns Lua string via lua_pushlstring()
+// success: returns Lua string
 // nil:     error
 static int luaMavlinkEncode(lua_State *L)
 {
@@ -1679,11 +1676,11 @@ size_t frameLen = 0;
   return 1;
 }
 
-// use:   mavlinkPush(msg_frame) or
-//        mavlinkPush(seq, sysid, compid, msg_struct, data)
+// use:   local res = mavlinkPush(msg_frame) or
+//        local res = mavlinkPush(seq, sysid, compid, msg_struct, data)
 // true:  successfully queued
 // nil:   no CRSF module selected
-// false: not enough space in output FIFO, or no parameter
+// false: not enough space in output FIFO, or incorrect parameter(s)
 static int luaMavlinkPush(lua_State* L)
 {
   bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
@@ -1754,8 +1751,6 @@ static int luaMavlinkStats(lua_State* L)
   lua_setfield(L, -2, "data_len_err");
   lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_missed);
   lua_setfield(L, -2, "packets_missed");
-  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_pop_cnt);
-  lua_setfield(L, -2, "rx_pop_cnt");
   return 1;
 }
 
@@ -1767,7 +1762,6 @@ static int luaMavlinkResetStats(lua_State* L)
   mavlinkTelemetryBuffer.rx_payload_len_error = 0;
   mavlinkTelemetryBuffer.rx_data_len_error = 0;
   mavlinkTelemetryBuffer.rx_packets_missed = 0;
-  mavlinkTelemetryBuffer.rx_pop_cnt = 0;
   mavlinkTelemetryBuffer.inputFifo.clear();
   return 0;
 }
@@ -1815,7 +1809,7 @@ static int luaMavlinkPushPacket(lua_State* L)
   for (int i = 0; i < length; i++) {
     lua_rawgeti(L, 1, i + 1);
     mavlinkTelemetryBuffer.outputFifo.push(luaL_checkinteger(L, -1));
-    // lua_pop(L, 1); // needed or not? adviced to use but not necessary ??
+    // lua_pop(L, 1); // needed or not? advised to use but not necessary ??
   }
   mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
   lua_pushboolean(L, true);

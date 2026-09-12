@@ -120,7 +120,6 @@ local mavRxCount = 0
 local mavRxSize = 0
 local mavRxSeqErrorCount = 0
 local mavRxMsgIdUnknownCount = 0
-local mavRxCrcErrorCount = 0
 
 -- mavlink tx stats
 local mavTxCount = 0
@@ -146,8 +145,7 @@ local function mavlinkHandleMsg(msg)
     end    
     
     if msg.res < 0 then 
-        if msg.res == -1 then mavRxMsgIdUnknownCount = mavRxMsgIdUnknownCount + 1 end
-        if msg.res == -2 then mavRxCrcErrorCount = mavRxCrcErrorCount + 1 end
+        mavRxMsgIdUnknownCount = mavRxMsgIdUnknownCount + 1
         return 
     end
     
@@ -278,24 +276,20 @@ local function Do(event)
     lcd.drawNumber(200, 110, stats.payload_len_err)
     lcd.drawText(5, 130, "data err:")
     lcd.drawNumber(200, 130, stats.data_len_err)
-    lcd.drawText(5, 150, "pops:")
-    lcd.drawNumber(200, 150, stats.rx_pop_cnt)
-    lcd.drawText(300, 150, string.format("(diff %d)", stats.rx_bytes_cnt - stats.rx_pop_cnt))
     
-    lcd.drawText(5, 200, string.format("bytes:  %d   (diff %d)", mavRxBytes, stats.rx_bytes_cnt-mavRxBytes))
-    lcd.drawText(5, 220, string.format("data:    %d  bytes", mavRxSize))
-    lcd.drawText(5, 240, string.format("count:  %d", mavRxCount))
-    lcd.drawText(5, 260, string.format("errors seq:  %d", mavRxSeqErrorCount))
-    lcd.drawText(5, 280, string.format("errors ukn:  %d", mavRxMsgIdUnknownCount))
-    lcd.drawText(5, 300, string.format("errors crc:  %d", mavRxCrcErrorCount))
+    lcd.drawText(5, 220, string.format("bytes:  %d   (diff %d)", mavRxBytes, stats.rx_bytes_cnt-mavRxBytes))
+    lcd.drawText(5, 240, string.format("data:    %d  bytes", mavRxSize))
+    lcd.drawText(5, 260, string.format("count:  %d", mavRxCount))
+    lcd.drawText(5, 280, string.format("errors seq:  %d", mavRxSeqErrorCount))
+    lcd.drawText(5, 300, string.format("errors ukn:  %d", mavRxMsgIdUnknownCount))
     
-    lcd.drawText(5, 340, string.format("count:  %d", mavTxCount))
-    lcd.drawText(5, 360, string.format("data:  %d bytes", mavTxSize))
+    lcd.drawText(5, 360, string.format("count:  %d", mavTxCount))
+    lcd.drawText(5, 380, string.format("data:  %d bytes", mavTxSize))
     
     --mavDebugDraw(200, 110)
     mavMsgListDraw(350,5)
 
-    debugDraw(350, 180)
+    debugDraw(450, 180)
     
     
     local tnow_10ms = getTime()
