@@ -1,17 +1,17 @@
 local widgetName = "mLRSMavW"
 ----------------------------------------------------------------------
--- Copyright (c) MLRS project
+-- Copyright (c) OlliW @ www.olliw.eu
 -- GPL3
 -- https://www.gnu.org/licenses/gpl-3.0.de.html
--- OlliW @ www.olliw.eu
 ----------------------------------------------------------------------
 -- Lua TOOLS script
 ----------------------------------------------------------------------
--- copy script to SCRIPTS\TOOLS folder on OpenTx SD card
+-- copy script to SCRIPTS\TOOLS folder on EdgeTx SD card
+-- copy mavsdk script to SCRIPTS\TOOLS\mavlink folder
+
 
 local VERSION = {
-    script = '2026-09-11.02', -- add a '.01' if needed for the day
-    required_tx_version_int = 10403,  -- 'v1.4.03'
+    script = '2026-09-13.02', -- add a '.01' if needed for the day
 }
 
 
@@ -39,161 +39,70 @@ end
 
 
 ----------------------------------------------------------------------
--- MAVLink messages
+-- Load Libraries
 ----------------------------------------------------------------------
 
-local mavMessages = {} -- not needed currently
+local mavsdk
 
-local function loadMavlinkMessageModule(filename)
-    local scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/mavlink_msg_"..filename..".lua")
-    if scrpt == nil then error("Cannot load " .. filename .. ": " .. (err or "unknown error")) end
-    local module = scrpt()
-    mavMessages[module.id] = module
-    return module
-end
-
-
-local HEARTBEAT = loadMavlinkMessageModule("HEARTBEAT")
-local STATUSTEXT = loadMavlinkMessageModule("STATUSTEXT")
-local ATTITUDE = loadMavlinkMessageModule("ATTITUDE")
-local VFR_HUD = loadMavlinkMessageModule("VFR_HUD")
-local TUNNEL = loadMavlinkMessageModule("TUNNEL")
-local HIGHRES_IMU = loadMavlinkMessageModule("HIGHRES_IMU")
-
-
-local mavMySysId = 2 --254
-local mavMyCompId = 154 -- 190 -- MAV_COMP_ID_MISSIONPLANNER
-local mavMyType = 26 --6 -- MAV_TYPE_GCS
-
-
-----------------------------------------------------------------------
--- MAVLink tx handling
-----------------------------------------------------------------------
-
-local mavTxState = {
-    nextSequence = 0
-}
-
-
-local mavTxQueue = {}
-
-local function mavTxQueuePush(msg_frame)
-    if #mavTxQueue >= 10 then table.remove(mavTxQueue, 1) end
-    mavTxQueue[#mavTxQueue + 1] = msg_frame
-end
-
-local function mavTxQueuePop()
-    if #mavTxQueue == 0 then return nil end
-    return table.remove(mavTxQueue, 1)
-end
-
-
-----------------------------------------------------------------------
-----------------------------------------------------------------------
-
-local mavMsgList = {}
-
-local function mavMsgListAdd(msg, txt)
-    for i = 1, #mavMsgList do
-        local a = mavMsgList[i]
-        if a.sysid == msg.sysid and a.compid == msg.compid and a.msgid == msg.msgid then
-            a.cnt = a.cnt + 1
-            return 
-        end
+local function mavsdkInit()
+    local scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/mavsdk.lua")
+    if scrpt == nil then
+        error("Cannot load mavsdk.lua: " .. (err or "unknown error"))
     end
-    mavMsgList[#mavMsgList + 1] = { sysid = msg.sysid, compid = msg.compid, msgid = msg.msgid, txt = txt, cnt = 1 }
+    mavsdk = scrpt()
 end
 
-local function mavMsgListDraw(x,y)
-    for i = 1, #mavMsgList do
-        local a = mavMsgList[i]
-        local text = string.format("%3d,%3d %3d %-12s %3d", a.sysid, a.compid, a.msgid, a.txt, a.cnt )
-        lcd.drawText(x, y + (i - 1) * 18, text)
-    end    
+mavsdkInit()
+
+
+local tautopilot
+
+local function tautopilotInit()
+    local scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/tautopilot.lua")
+    if scrpt == nil then
+        error("Cannot load tautopilot.lua: " .. (err or "unknown error"))
+    end
+    tautopilot = scrpt()
 end
+
+tautopilotInit()
+
+
+local tmainscreen
+
+local function tmainscreenInit()
+    local scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/tmainscreen.lua")
+    if scrpt == nil then
+        error("Cannot load tmainscreen.lua: " .. (err or "unknown error"))
+    end
+    tmainscreen = scrpt()
+end
+
+tmainscreenInit()
 
 
 ----------------------------------------------------------------------
 -- MAVLink Receive and Send Functions
 ----------------------------------------------------------------------
 
-local mavRxLastSequence = nil
--- mavlink rx stats
-local mavRxBytes = 0
-local mavRxCount = 0
-local mavRxSize = 0
-local mavRxSeqErrorCount = 0
-local mavRxMsgIdUnknownCount = 0
+local my = {
+    SysId = 254, --2 --254
+    CompId = 190, --154, -- 190 -- MAV_COMP_ID_MISSIONPLANNER
+    Type = 6, --26, --6 -- MAV_TYPE_GCS
+}
 
--- mavlink tx stats
-local mavTxCount = 0
-local mavTxSize = 0
-
-local mavTlast1Hz = 0
+local tlast_1Hz = 0
 
 
-local function mavlinkHandleMsg(msg)
-    mavRxBytes = mavRxBytes + 12 + msg.len
-    mavRxCount = mavRxCount + 1
-    mavRxSize = mavRxSize + msg.len
-            
-    if msg.sysid == 1 and msg.compid == 1 then -- do seq check only for autopilot
-        if mavRxLastSequence ~= nil then
-            local expectedSequence = mavRxLastSequence + 1
-            if expectedSequence >= 256 then expectedSequence = 0 end
-            if expectedSequence ~= msg.seq then 
-                mavRxSeqErrorCount = mavRxSeqErrorCount + 1; 
-            end
-        end  
-        mavRxLastSequence = msg.seq
-    end    
-    
-    if msg.res < 0 then 
-        mavRxMsgIdUnknownCount = mavRxMsgIdUnknownCount + 1
-        return 
-    end
-    
-debugAdd(string.format("MAV %d/%d  %d  seq=%d", msg.sysid, msg.compid, msg.msgid, msg.seq))            
-            
-    if msg.msgid == HEARTBEAT.id then
-        local payload = mavlinkDecode(HEARTBEAT, msg)
-        mavMsgListAdd(msg, "HEARTBEAT")
-    elseif msg.msgid == STATUSTEXT.id then     
-        local payload = mavlinkDecode(STATUSTEXT, msg)
-        mavMsgListAdd(msg, "STATUSTEXT")
-    elseif msg.msgid == ATTITUDE.id then     
-        local payload = mavlinkDecode(ATTITUDE, msg)
-        mavMsgListAdd(msg, "ATTITUDE")
-    elseif msg.msgid == VFR_HUD.id then     
-        local payload = mavlinkDecode(VFR_HUD, msg)
-        mavMsgListAdd(msg, "VFR_HUD")
---    else
---        mavMsgListAdd(msg, "--")
-    end    
+--[[ a message handler callback would be used so:
+mavsdk.handleMessageCallback = function(msg)
+    ...
 end
+--]]
 
 
 local function mavlinkSend(msg_struct, data)
---[[  
-    local msg_frame = mavlinkEncode(
-        mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data)
-    if msg_frame == nil then return false end
-    
-    mavTxQueuePush(msg_frame) --]]
-   
-    local res = mavlinkPush(
-        mavTxState.nextSequence, mavMySysId, mavMyCompId, msg_struct, data)
-    if res == nil then return false end
-    
-    mavTxState.nextSequence = mavTxState.nextSequence + 1 -- prepare for next
-    if mavTxState.nextSequence >= 256 then mavTxState.nextSequence = 0 end
-    
-    mavTxCount = mavTxCount + 1
-    --mavTxSize = mavTxSize + string.byte(msg_frame, 2)
-    
-    collectgarbage("collect")    
-    
-    return true
+    return mavsdk.sendMessage(my.SysId, my.CompId, msg_struct, data)
 end
 
 
@@ -201,66 +110,82 @@ local function mavlinkDo()
     local tnow_10ms = getTime()
     
     -- 1 Hz tick
-    if tnow_10ms - mavTlast1Hz >= 100 then
-        mavTlast1Hz = tnow_10ms
+    if tnow_10ms - tlast_1Hz >= 100 then
+        tlast_1Hz = tnow_10ms
         
-        mavlinkSend(HEARTBEAT, {
-            type = mavMyType,
+        mavlinkSend(mavsdk.HEARTBEAT, {
+            type = my.Type,
             autopilot = 0, -- MAV_AUTOPILOT_INVALID
-            custom_mode = mavTxState.nextSequence,
+            custom_mode = 12345,
         })
       
-        mavlinkSend(STATUSTEXT, {
+--[[        mavlinkSend(mavsdk.STATUSTEXT, {
             severity = 6,
             text = "Hello from mLRS, I'm alive",
-        })
-        
---[[        mavlinkSend(VFR_HUD, {
-            airspeed = 42,
-            groundspeed = mavTxState.nextSequence,
-            alt = 9,
-            climb = 10,
-            heading = 11,
-            throttle = 12,
         }) --]]
-        
-        mavlinkSend(HIGHRES_IMU, {
-            time_usec = mavTxState.nextSequence,
-        }) 
-      
     end  
 end
 
 
-
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
-local tlast_1Hz = 0
 
 
-local function mavlinkProcessIt()
-    -- read all MAVLink messages
-    --for i = 1, 1 do 
-    while true do -- when in widget mode, EgdeTx can't handle mnore than that !! :(:(
-        local msg = mavlinkPop()
-        if msg == nil then
-            break
-        end
-        mavlinkHandleMsg(msg)
-    end
+local function doIt()
+    -- MAVLink
+    mavsdk.Do() -- mavsdk standard do routine, receives, and handled
+    mavlinkDo() -- our handler to send
 
-    -- send queued MAVLink messages
-    local msg_frame = mavTxQueuePop()
-    if msg_frame ~= nil then
-        mavlinkPush(msg_frame)
-    end
-
-    mavlinkDo()
+    tautopilot.statusTextDo(mavsdk)
 end
 
 
 local function drawIt(event)
+    lcd.clear()
 
+    -- Main Screen
+    tmainscreen.DrawBackground()
+    tmainscreen.DrawTopBar(mavsdk)
+    tmainscreen.DrawFooter(mavsdk, tautopilot)
+
+    -- HUD
+    tautopilot.DrawHUD(mavsdk, 240, 22, 146)
+    tautopilot.drawHomeIcon(mavsdk, 240, 11, 135)
+
+    -- draw GPS status
+    if mavsdk.Gps2Raw == nil then
+        tautopilot.DrawGpsStatus(mavsdk, 1, 2, 34, 4)
+    else
+        tautopilot.DrawGpsStatus(mavsdk, 1, 2, 13, 0)
+        tautopilot.DrawGpsStatus(mavsdk, 2, 2, 73, 0)
+    end
+
+    -- draw speeds
+    if mavsdk.Gps2Raw == nil then
+        tautopilot.DrawSpeeds(mavsdk, 2, 115)
+    else
+        tautopilot.DrawSpeeds(mavsdk, 2, 147)
+    end
+
+    -- draw GPS coordinates
+    if mavsdk.Gps2Raw == nil then
+        tautopilot.DrawGpsCoords(mavsdk, 1, 2, 165)
+    end
+
+    -- draw battery status
+    tautopilot.DrawBatteryVoltage(mavsdk, 480, 30)
+    tautopilot.DrawBatteryCurrent(mavsdk, 480, 65)
+    tautopilot.DrawBatteryRemaining(mavsdk, 480, 100)
+    tautopilot.DrawBatteryCharge(mavsdk, 480, 135)
+
+    -- draw arming status
+    tautopilot.DrawArmingStatus(mavsdk, 240, 174)
+
+    -- status bar / status text follow here
+    tmainscreen.drawStatusText(tautopilot, 5, 230)
+
+
+--[[    -- display
     local stats = mavlinkStats()
     lcd.drawText(5, 5, "MAVLink Stats")
     lcd.drawText(5, 30, "bytes:")
@@ -274,30 +199,9 @@ local function drawIt(event)
     lcd.drawText(5, 110, "payload err:")
     lcd.drawNumber(200, 110, stats.payload_len_err)
     lcd.drawText(5, 130, "data err:")
-    lcd.drawNumber(200, 130, stats.data_len_err)
-    
-    lcd.drawText(5, 220, string.format("bytes:  %d   (diff %d)", mavRxBytes, stats.rx_bytes_cnt-mavRxBytes))
-    lcd.drawText(5, 240, string.format("data:    %d  bytes", mavRxSize))
-    lcd.drawText(5, 260, string.format("count:  %d", mavRxCount))
-    lcd.drawText(5, 280, string.format("errors seq:  %d", mavRxSeqErrorCount))
-    lcd.drawText(5, 300, string.format("errors ukn:  %d", mavRxMsgIdUnknownCount))
-    
-    lcd.drawText(5, 360, string.format("count:  %d", mavTxCount))
-    lcd.drawText(5, 380, string.format("data:  %d bytes", mavTxSize))
-    
-    --mavDebugDraw(200, 110)
-    mavMsgListDraw(350,5)
+    lcd.drawNumber(200, 130, stats.data_len_err) --]]
 
     debugDraw(450, 180)
-    
-    
-    local tnow_10ms = getTime()
-    if tnow_10ms - tlast_1Hz >= 100 then
-        tlast_1Hz = tnow_10ms
-        
---[[        lcd.drawText(5, 90, string.format("min: %d bytes", crsfRxSizeMin))
-        crsfRxSizeMin = 10000 --]]
-    end  
     
 end
 
@@ -307,32 +211,32 @@ end
 ----------------------------------------------------------------------
 
 local function create(zone, options)
-  if model.getModule(0).Type ~= 5 and model.getModule(1).Type ~= 5 then
-    error("CRSF not enabled!")
-  end
+    if model.getModule(0).Type ~= 5 and model.getModule(1).Type ~= 5 then
+        error("CRSF not enabled!")
+    end
   
-  local widget = { zone = zone, options = options }
+    local widget = { zone = zone, options = options }
 
-  tlast_1Hz = getTime()
-  mavlinkResetStats()
+    tlast_1Hz = getTime()
+    mavlinkResetStats()
 
-  return widget
+    return widget
 end
 
 
 local function update(widget, options)
-  widget.options = options
+    widget.options = options
 end
 
 
 local function background(widget)
-    mavlinkProcessIt()
+    doIt()
 end
 
 
 local function refresh(widget, event, touchState)
     background(widget)
---    mavlinkProcessIt()    
+    --doIt()    
     drawIt(event)
 end
 

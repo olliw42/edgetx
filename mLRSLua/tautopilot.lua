@@ -12,17 +12,173 @@
 local tautopilot = {}
 
 
+local bitmapHomePath = "/SCRIPTS/TOOLS/img/"
+
+
 ----------------------------------------------------------------------
--- Here We GO
+-- ArduPilot Flight Modes 
+----------------------------------------------------------------------
+
+local apCopterFlightMode = {
+    AltHold = 2,
+    Auto = 3,
+    Guided = 4,
+    Loiter = 5,
+    Land = 9,
+    PosHold = 16,
+    Follow = 23,
+}    
+
+
+local apRoverFlightModes = {}
+apRoverFlightModes[0]   = { "Manual",       "fmman" }
+apRoverFlightModes[1]   = { "Acro",         "fmacro" }
+apRoverFlightModes[3]   = { "Steering",     "fmchanged" }
+apRoverFlightModes[4]   = { "Hold",         "fmchanged" }
+apRoverFlightModes[5]   = { "Loiter",       "fmloit" }
+apRoverFlightModes[6]   = { "Follow",       "fmchanged" }
+apRoverFlightModes[7]   = { "Simple",       "fmchanged" }
+apRoverFlightModes[10]  = { "Auto",         "fmauto" }
+apRoverFlightModes[11]  = { "RTL",          "fmrtl" }
+apRoverFlightModes[12]  = { "Smart RTL",    "fmsmrtrtl" }
+apRoverFlightModes[15]  = { "Guided",       "fmguid" }
+apRoverFlightModes[16]  = { "Initialising", "fmchanged" }
+
+local apPlaneFlightModes = {}
+apPlaneFlightModes[0]   = { "Manual",       "fmman" }
+apPlaneFlightModes[1]   = { "Circle",       "fmcirc" }
+apPlaneFlightModes[2]   = { "Stabilize",    "fmstab" }
+apPlaneFlightModes[3]   = { "Training",     "fmtrain" }
+apPlaneFlightModes[4]   = { "Acro",         "fmacro" }
+apPlaneFlightModes[5]   = { "Fly by Wire A", "fmfbwa" }
+apPlaneFlightModes[6]   = { "Fly by Wire B", "fmfbwb" }
+apPlaneFlightModes[7]   = { "Cruise",       "fmcruise" }
+apPlaneFlightModes[8]   = { "Autotune",     "fmat" }
+apPlaneFlightModes[10]  = { "Auto",         "fmauto" }
+apPlaneFlightModes[11]  = { "RTL",          "fmrtl" }
+apPlaneFlightModes[12]  = { "Loiter",       "fmloit" }
+apPlaneFlightModes[13]  = { "Take Off",     "fmtakeoff" }
+apPlaneFlightModes[14]  = { "Avoid ADSB",   "fmavoid" }
+apPlaneFlightModes[15]  = { "Guided",       "fmguid" }
+apPlaneFlightModes[16]  = { "Initializing", "fminit" }
+apPlaneFlightModes[17]  = { "QStabilize",   "fmqstab" }
+apPlaneFlightModes[18]  = { "QHover",       "fmqhover" }
+apPlaneFlightModes[19]  = { "QLoiter",      "fmqloit" }
+apPlaneFlightModes[20]  = { "QLand",        "fmqland" }
+apPlaneFlightModes[21]  = { "QRTL",         "fmqrtl" }
+apPlaneFlightModes[22]  = { "QAutotune",    "fmqat" }
+apPlaneFlightModes[23]  = { "QAcro",        "fmchanged" }
+apPlaneFlightModes[23]  = { "Thermal",      "fmchanged" }
+apPlaneFlightModes[24]  = { "Loiter Alt QLand", "fmchanged" }
+
+local apCopterFlightModes = {}
+apCopterFlightModes[0]  = { "Stabilize",    "fmstab" }
+apCopterFlightModes[1]  = { "Acro",         "fmacro" }
+apCopterFlightModes[2]  = { "AltHold",      "fmalthld" }
+apCopterFlightModes[3]  = { "Auto",         "fmauto" }
+apCopterFlightModes[4]  = { "Guided",       "fmguid" }
+apCopterFlightModes[5]  = { "Loiter",       "fmloit" }
+apCopterFlightModes[6]  = { "RTL",          "fmrtl" }
+apCopterFlightModes[7]  = { "Circle",       "fmcirc" }
+apCopterFlightModes[9]  = { "Land",         "fmland" }
+apCopterFlightModes[11] = { "Drift",        "fmdrift" }
+apCopterFlightModes[13] = { "Sport",        "fmsport" }
+apCopterFlightModes[14] = { "Flip",         "fmflip" }
+apCopterFlightModes[15] = { "AutoTune",     "fmat" }
+apCopterFlightModes[16] = { "PosHold",      "fmposhld" }
+apCopterFlightModes[17] = { "Brake",        "fmbrake" }
+apCopterFlightModes[18] = { "Throw",        "fmthrow" }
+apCopterFlightModes[19] = { "Avoid ADSB",   "fmavoid" }
+apCopterFlightModes[20] = { "Guided noGPS", "fmgnogps" }
+apCopterFlightModes[21] = { "Smart RTL",    "fmsmrtrtl" }
+apCopterFlightModes[22] = { "FlowHold",     "fmchanged" }
+apCopterFlightModes[23] = { "Follow",       "fmchanged" }
+apCopterFlightModes[24] = { "ZigZag",       "fmchanged" }
+apCopterFlightModes[25] = { "SystemId",     "fmchanged" }
+apCopterFlightModes[26] = { "Autorotate",   "fmchanged" }
+apCopterFlightModes[27] = { "Auto RTL",     "fmchanged" }
+apCopterFlightModes[28] = { "Turtle",       "fmchanged" }
+
+
+function tautopilot.getFlightModeStr(mavsdk)
+    if mavsdk.Heartbeat == nil then return "unknown" end 
+    local fm = mavsdk.Heartbeat.custom_mode
+    local vc = mavsdk.Vehicle.class
+    local fmstr = nil
+    if vc == mavsdk.VEHICLECLASS_COPTER then
+        fmstr = apCopterFlightModes[fm][1]
+    elseif vc == mavsdk.VEHICLECLASS_PLANE then    
+        fmstr = apPlaneFlightModes[fm][1]
+    elseif vc == mavsdk.VEHICLECLASS_ROVER then    
+        fmstr = apRoverFlightModes[fm][1]
+    end    
+    if fmstr == nil then fmstr = "unknown" end
+    return fmstr
+end    
+
+
+----------------------------------------------------------------------
+-- Status Text
+----------------------------------------------------------------------
+
+local statusText = {}
+local statusTextIdx = 0
+
+local statusTextSeverity = {
+    [0] = { "EMR", COLOR_RED },
+    [1] = { "ALR", COLOR_RED },
+    [2] = { "CRT", COLOR_RED },
+    [3] = { "ERR", COLOR_RED },
+    [4] = { "WRN", COLOR_YELLOW },
+    [5] = { "NOT", COLOR_YELLOW },
+    [6] = { "INF", COLOR_WHITE },
+    [7] = { "DBG", COLOR_LIGHTGREY },
+}
+
+
+function tautopilot.getStatusText(i)
+    return statusTextIdx, statusText[i]
+end
+
+
+function tautopilot.statusTextDo(mavsdk)
+    local st = mavsdk.StatusText
+    if st == nil or not st.updated then
+        return
+    end
+    st.updated = false
+
+    local txt = st.text
+    local sev = st.severity
+
+    if txt == nil then return end
+
+    if statusTextIdx > 0 and statusText[statusTextIdx].text == txt then
+        statusText[statusTextIdx].count = statusText[statusTextIdx].count + 1
+    else
+        statusTextIdx = (statusTextIdx % 12) + 1
+        statusText[statusTextIdx] = {
+            text = txt,
+            severity = sev,
+            count = 1
+        }
+    end
+end
+
+
+----------------------------------------------------------------------
+-- DRAW FUNCTIONS
 ----------------------------------------------------------------------
 
 -- Colors
 
 local COLOR_WHITE = lcd.RGB(0xFF, 0xFF, 0xFF)
 local COLOR_BLACK = lcd.RGB(0x00, 0x00, 0x00)
+local COLOR_LIGHTGREY = lcd.RGB(0xB0, 0xB0, 0xB0)
 local COLOR_GREEN = lcd.RGB(25, 150, 50)
 local COLOR_RED = lcd.RGB(0xE5, 0x20, 0x1E)
 local COLOR_YELLOW = lcd.RGB(0xFF, 0xD0, 0x00)
+local COLOR_BACKGROUND = lcd.RGB(0x08, 0x54, 0x88)
 local COLOR_SKY = lcd.RGB(135, 206, 235)
 local COLOR_EARTH = lcd.RGB(107, 142, 35)
 
@@ -56,11 +212,12 @@ local hudCompassTicks = {
 
 -- HUD frame
 local function drawHudFrame(mavsdk, x, y, h)
-    if mavsdk.Attitude == nil then
-        return
+    local pitch = 0
+    local roll = 0
+    if mavsdk.Attitude ~= nil then
+        pitch = math.deg(mavsdk.Attitude.pitch)
+        roll = math.deg(mavsdk.Attitude.roll)
     end
-    local pitch = math.deg(mavsdk.Attitude.pitch)
-    local roll = math.deg(mavsdk.Attitude.roll)
 
     local minY = y
     local maxY = y + h
@@ -81,10 +238,7 @@ local function drawHudFrame(mavsdk, x, y, h)
         CUSTOM_COLOR)
 
     -- pitch ladder geometry
-    local ox
-    local oy
-    local cx
-    local cy
+    local ox, oy, cx, cy
     if roll == 0 or math.abs(roll) == 180 then
         ox = (minX + maxX) / 2
         oy = (minY + maxY) / 2 + pitch * 1.85
@@ -130,10 +284,10 @@ end
 
 -- Compass ribbon
 local function drawHudCompassRibbon(mavsdk, x, y)
-    if mavsdk.VfrHud == nil then
-        return
+    local heading = 0
+    if mavsdk.VfrHud ~= nil then
+        heading = mavsdk.VfrHud.heading    
     end
-    local heading = mavsdk.VfrHud.heading
 
     local minX = x - 110
     local maxX = x + 110
@@ -185,10 +339,10 @@ end
 
 -- Ground speed
 local function drawHudGroundSpeed(mavsdk, x, y)
-    if mavsdk.VfrHud == nil then
-        return
+    local groundSpeed = 0
+    if mavsdk.VfrHud ~= nil then
+        groundSpeed = mavsdk.VfrHud.groundspeed
     end
-    local groundSpeed = mavsdk.VfrHud.groundspeed
 
     lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
     lcd.drawText(
@@ -215,10 +369,10 @@ end
 
 -- Altitude
 local function drawHudAltitude(mavsdk, x, y)
-    if mavsdk.VfrHud == nil then
-        return
+    local altitude = 0
+    if mavsdk.VfrHud ~= nil then
+        altitude = mavsdk.VfrHud.alt
     end
-    local altitude = mavsdk.VfrHud.alt
 
     lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
     lcd.drawText(
@@ -250,10 +404,11 @@ end
 
 -- Vertical speed
 local function drawHudVerticalSpeed(mavsdk, x, y)
-    if mavsdk.VfrHud == nil then
-        return
+    local verticalSpeed = 0
+    if mavsdk.VfrHud ~= nil then
+        verticalSpeed = mavsdk.VfrHud.climb
     end
-    local verticalSpeed = mavsdk.VfrHud.climb
+    
     lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
     lcd.drawFilledRectangle(
         x - 30, y, 60, 20,
@@ -274,6 +429,108 @@ function tautopilot.DrawHUD(mavsdk, x, y, h)
     drawHudGroundSpeed(mavsdk, x - 120, y + 58)
     drawHudAltitude(mavsdk, x + 120, y + 58)
     drawHudVerticalSpeed(mavsdk, x, y + h - 20)
+end
+
+
+----------------------------------------------------------------------
+-- HUD HOME Indicator
+----------------------------------------------------------------------
+
+local homePos = nil
+local homeBitmap = nil
+
+
+local function updateHomePosition(mavsdk)
+    if mavsdk.Vehicle.arm_has_changed and mavsdk.Vehicle.is_armed then
+        local gps = mavsdk.GpsRawInt
+        if gps ~= nil and gps.fix_type >= 3 then
+            homePos = {
+                lat = gps.lat,
+                lon = gps.lon
+            }
+        end
+    end
+end
+
+
+local function calcHomeAngle(mavsdk)
+    if not mavsdk.Vehicle.is_armed or homePos == nil then
+        return 0
+    end
+
+    local gps = mavsdk.GpsRawInt
+    if gps == nil then
+        return 0
+    end
+
+    local lat1 = gps.lat
+    local lon1 = gps.lon
+    local lat0 = homePos.lat
+    local lon0 = homePos.lon
+
+    local xScale =
+        math.cos(math.rad((lat1 + lat0) * 1e-7) * 0.5)
+
+    local x = math.rad(0.6371) * (lon1 - lon0) * xScale
+    local y = math.rad(0.6371) * (lat1 - lat0)
+
+    local homeAngle = math.deg(math.atan2(x, y))
+
+    if homeAngle < 0 then
+        homeAngle = homeAngle + 360
+    end
+    
+    return homeAngle
+end
+
+
+local function drawHomeBitmap(x, y)
+    if homeBitmap == nil then
+        homeBitmap = Bitmap.open(bitmapHomePath .. "home.png")
+    end
+    lcd.drawBitmap(homeBitmap, x, y)
+end
+
+
+function tautopilot.drawHomeIcon(mavsdk, x, y, h)
+    updateHomePosition(mavsdk)
+    local homeAngle = calcHomeAngle(mavsdk)
+  
+    local yaw = 0
+    if mavsdk.Attitude ~= nil then
+        yaw = math.deg(mavsdk.Attitude.yaw)
+    end
+
+    local angleToHome = homeAngle - 180.0
+    local iconAng = angleToHome - yaw
+
+    if iconAng <= -180.0 then
+        iconAng = iconAng + 360.0
+    end
+    if iconAng > 180.0 then
+        iconAng = iconAng - 360.0
+    end
+
+    local iconDx = 0
+    local iconY = y + 10
+    if iconAng >= -90.0 and iconAng <= 90.0 then
+        iconDx = iconAng / 90 * 130
+    elseif iconAng < -90.0 then
+        iconDx = -(180 + iconAng) / 90 * 130
+        iconY = y + h + 3
+    elseif iconAng > 90.0 then
+        iconDx = (180 - iconAng) / 90 * 130
+        iconY = y + h + 3
+    end
+
+    if iconDx > 120 then
+        iconDx = 120
+    end
+    if iconDx < -120 then
+        iconDx = -120
+    end
+
+    drawHomeBitmap(x - 10 + iconDx, iconY)
 end
 
 
@@ -309,16 +566,14 @@ end
 function tautopilot.DrawGpsStatus(mavsdk, gpsId, x, y, dy)
     local txtsize1 = MIDSIZE
     local txtsize2 = DBLSIZE
-    local gps
+    local gps = nil
     if gpsId == 1 then
         gps = mavsdk.GpsRawInt
     elseif gpsId == 2 then
         gps = mavsdk.Gps2Raw
-    else
-        return
     end
     if gps == nil then
-        return
+        gps = { fix_type = 0, satellites_visible = 100, eph = 100000.0 }
     end
 
     local gpsfix = gps.fix_type
@@ -331,16 +586,11 @@ function tautopilot.DrawGpsStatus(mavsdk, gpsId, x, y, dy)
     else
         lcd.setColor(CUSTOM_COLOR, COLOR_RED)
     end
-
     local fixstr = "No FIX"
     if gpsfix >= 3 then
         fixstr = "3D FIX"
     end
-
-    lcd.drawText(
-        x, y + 8,
-        fixstr,
-        CUSTOM_COLOR + txtsize1 + LEFT)
+    lcd.drawText(x, y + 8, fixstr, CUSTOM_COLOR + txtsize1 + LEFT)
 
     -- Satellites
     if gpssat > 99 then
@@ -351,10 +601,7 @@ function tautopilot.DrawGpsStatus(mavsdk, gpsId, x, y, dy)
     else
         lcd.setColor(CUSTOM_COLOR, COLOR_RED)
     end
-    lcd.drawNumber(
-        x + 3, y + 30 + dy,
-        gpssat,
-        CUSTOM_COLOR + txtsize2)
+    lcd.drawNumber(x + 3, y + 30 + dy, gpssat, CUSTOM_COLOR + txtsize2)
 
     -- HDOP
     lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
@@ -380,20 +627,17 @@ end
 -- sourceId 2: GPS2
 -- sourceId 3: GLOBAL_POSITION_INT
 function tautopilot.DrawGpsCoords(mavsdk, sourceId, x, y)
-    local source
-    local lat
-    local lon
+    local source = nil
+    local lat, lon
     if sourceId == 1 then
         source = mavsdk.GpsRawInt
     elseif sourceId == 2 then
         source = mavsdk.Gps2Raw
     elseif sourceId == 3 then
         source = mavsdk.GlobalPositionInt
-    else
-        return
     end
     if source == nil then
-        return
+        source = { lat = 0.0, lon = 0.0 }
     end
 
     lat = source.lat * 1e-7
@@ -417,10 +661,10 @@ end
 
 -- Battery Voltage
 function tautopilot.DrawBatteryVoltage(mavsdk, x, y)
-    if mavsdk.BatteryStatus == nil then
-        return
+    local voltage = 0
+    if mavsdk.BatteryStatus ~= nil then
+        voltage = mavsdk.BatteryStatus.voltage
     end
-    local voltage = mavsdk.BatteryStatus.voltage
 
     -- MAVLink: millivolts, UINT16_MAX means unknown
     voltage = voltage * 0.001
@@ -439,10 +683,10 @@ end
 
 -- Battery Current
 function tautopilot.DrawBatteryCurrent(mavsdk, x, y)
-    if mavsdk.BatteryStatus == nil then
-        return
+    local current = 0
+    if mavsdk.BatteryStatus ~= nil then
+        current = mavsdk.BatteryStatus.current_battery
     end
-    local current = mavsdk.BatteryStatus.current_battery
 
     -- MAVLink: 10 mA units, -1 means unknown
     if current < 0 then
@@ -465,10 +709,10 @@ end
 
 -- Battery Remaining
 function tautopilot.DrawBatteryRemaining(mavsdk, x, y)
-    if mavsdk.BatteryStatus == nil then
-        return
+    local remaining = 0
+    if mavsdk.BatteryStatus ~= nil then
+        remaining = mavsdk.BatteryStatus.battery_remaining
     end
-    local remaining = mavsdk.BatteryStatus.battery_remaining
 
     -- MAVLink: -1 means unknown
     if remaining < 0 then
@@ -489,10 +733,10 @@ end
 
 -- Battery Charge
 function tautopilot.DrawBatteryCharge(mavsdk, x, y)
-    if mavsdk.BatteryStatus == nil then
-        return
+    local charge = 0
+    if mavsdk.BatteryStatus ~= nil then
+        charge = mavsdk.BatteryStatus.current_consumed
     end
-    local charge = mavsdk.BatteryStatus.current_consumed
 
     -- MAVLink: consumed charge in mAh, -1 means unknown
     if charge < 0 then

@@ -11,7 +11,7 @@
 
 
 local VERSION = {
-    script = '2026-09-11.02', -- add a '.01' if needed for the day
+    script = '2026-09-13.02', -- add a '.01' if needed for the day
 }
 
 
@@ -34,7 +34,7 @@ end
 
 
 ----------------------------------------------------------------------
--- MAVLink messages
+-- Load Libraries
 ----------------------------------------------------------------------
 
 local mavsdk
@@ -76,25 +76,24 @@ end
 tmainscreenInit()
 
 
-local my = {
-    SysId = 2, --254
-    CompId = 154, -- 190 -- MAV_COMP_ID_MISSIONPLANNER
-    Type = 26, --6 -- MAV_TYPE_GCS
-}
-
-
 ----------------------------------------------------------------------
 -- MAVLink Receive and Send Functions
 ----------------------------------------------------------------------
+
+local my = {
+    SysId = 254, --2 --254
+    CompId = 190, --154, -- 190 -- MAV_COMP_ID_MISSIONPLANNER
+    Type = 6, --26, --6 -- MAV_TYPE_GCS
+}
+
+local tlast_1Hz = 0
+
 
 --[[ a message handler callback would be used so:
 mavsdk.handleMessageCallback = function(msg)
     ...
 end
 --]]
-
-
-local tlast_1Hz = 0
 
 
 local function mavlinkSend(msg_struct, data)
@@ -115,11 +114,10 @@ local function mavlinkDo()
             custom_mode = 12345,
         })
       
-        mavlinkSend(mavsdk.STATUSTEXT, {
+--[[        mavlinkSend(mavsdk.STATUSTEXT, {
             severity = 6,
             text = "Hello from mLRS, I'm alive",
-        })
-    
+        }) --]]
     end  
 end
 
@@ -131,20 +129,23 @@ local function Do(event)
     lcd.clear()
 
     -- MAVLink
-    mavsdk.Do()
-    mavlinkDo()
+    mavsdk.Do() -- mavsdk standard do routine, receives, and handled
+    mavlinkDo() -- our handler to send
 
+    tautopilot.statusTextDo(mavsdk)
 
+    -- Main Screen
     tmainscreen.DrawBackground()
-    tmainscreen.DrawTopBar()
+    tmainscreen.DrawTopBar(mavsdk)
     tmainscreen.DrawFooter(mavsdk, tautopilot)
 
     -- HUD
     tautopilot.DrawHUD(mavsdk, 240, 22, 146)
+    tautopilot.drawHomeIcon(mavsdk, 240, 11, 135)
 
     -- draw GPS status
     if mavsdk.Gps2Raw == nil then
-        tautopilot.DrawGpsStatus(mavsdk, 1, 2, 30, 5)
+        tautopilot.DrawGpsStatus(mavsdk, 1, 2, 34, 4)
     else
         tautopilot.DrawGpsStatus(mavsdk, 1, 2, 13, 0)
         tautopilot.DrawGpsStatus(mavsdk, 2, 2, 73, 0)
@@ -172,7 +173,7 @@ local function Do(event)
     tautopilot.DrawArmingStatus(mavsdk, 240, 174)
 
     -- status bar / status text follow here
-
+    tmainscreen.drawStatusText(tautopilot, 5, 230)
 
 
 --[[    -- display
@@ -190,16 +191,6 @@ local function Do(event)
     lcd.drawNumber(200, 110, stats.payload_len_err)
     lcd.drawText(5, 130, "data err:")
     lcd.drawNumber(200, 130, stats.data_len_err) --]]
-    
---[[    -- attitude
-    local att = mavsdk.Attitude
-    if att then
-        lcd.drawText(300, 30, "Attitude")
-        lcd.drawText(300, 50, "roll:"); lcd.drawNumber(420, 50, math.deg(att.roll))
-        lcd.drawText(300, 70, "pitch:"); lcd.drawNumber(420, 70, math.deg(att.pitch))
-        lcd.drawText(300, 90, "yaw:"); lcd.drawNumber(420, 90, math.deg(att.yaw))
-    end   --]]
-    
 
     debugDraw(450, 180)
     

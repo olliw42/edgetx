@@ -11,6 +11,7 @@
 local mavsdkPath1 = "/WIDGEST/mLRSMavW/Mavlink/"
 local mavsdkPath2 = "/SCRIPTS/TOOLS/Mavlink/"
 
+
 local function loadMavlinkMessageModule(filename)
     local scrpt, err = loadScript(mavsdkPath1 .. "mavlink_msg_" .. filename .. ".lua")
     if scrpt == nil then
@@ -69,6 +70,40 @@ mavsdk.handleMessageCallback = nil
 
 
 ----------------------------------------------------------------------
+-- Vehicle Classes
+----------------------------------------------------------------------
+
+mavsdk.VEHICLECLASS_UNKNOWN = 0
+mavsdk.VEHICLECLASS_COPTER  = 1
+mavsdk.VEHICLECLASS_PLANE   = 2
+mavsdk.VEHICLECLASS_ROVER   = 3
+
+
+local function getVehicleClass(mavType)
+    if mavType == 2 or   -- MAV_TYPE_QUADROTOR
+       mavType == 3 or   -- MAV_TYPE_COAXIAL
+       mavType == 4 or   -- MAV_TYPE_HELICOPTER
+       mavType == 13 or  -- MAV_TYPE_HEXAROTOR
+       mavType == 14 or  -- MAV_TYPE_OCTOROTOR
+       mavType == 15 or  -- MAV_TYPE_TRICOPTER
+       mavType == 18 then -- MAV_TYPE_DODECAROTOR
+        return mavsdk.VEHICLECLASS_COPTER
+
+    elseif mavType == 1 or  -- MAV_TYPE_FIXED_WING
+           mavType == 19 or -- MAV_TYPE_FLAPPING_WING
+           mavType == 20 then -- MAV_TYPE_KITE
+        return mavsdk.VEHICLECLASS_PLANE
+
+    elseif mavType == 10 or -- MAV_TYPE_GROUND_ROVER
+           mavType == 11 then -- MAV_TYPE_SURFACE_BOAT
+        return mavsdk.VEHICLECLASS_ROVER
+    end
+
+    return mavsdk.VEHICLECLASS_UNKNOWN
+end
+
+
+----------------------------------------------------------------------
 -- Vehicle
 ----------------------------------------------------------------------
 
@@ -84,6 +119,7 @@ mavsdk.Vehicle = {
     compid = 0,
     autopilot = 0,
     type = 0,
+    class = mavsdk.VEHICLECLASS_UNKNOWN,
     -- state
     is_connected = false,
     is_armed = false,
@@ -115,6 +151,7 @@ local function waitForAutopilot(msg)
             mavsdk.Vehicle.compid = msg.compid
             mavsdk.Vehicle.autopilot = payload.autopilot
             mavsdk.Vehicle.type = payload.type
+            mavsdk.Vehicle.class = getVehicleClass(payload.type)            
             updateVehicleFromHeartbeat(payload)
             mavsdk.Heartbeat = payload
             return false
@@ -229,7 +266,7 @@ local function handleMessage(msg)
         local payload = mavlinkDecode(STATUSTEXT, msg)
         if payload ~= nil then
             mavsdk.StatusText = payload
-            mavsdk.StatusText.Updated = true
+            mavsdk.StatusText.updated = true
         end
         
     elseif msg.msgid == GPS_RAW_INT.id then

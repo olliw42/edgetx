@@ -13,9 +13,13 @@ local tmainscreen = {}
 
 local COLOR_WHITE = lcd.RGB(0xFF, 0xFF, 0xFF)
 local COLOR_BLACK = lcd.RGB(0x00, 0x00, 0x00)
+local COLOR_LIGHTGREY = lcd.RGB(0xB0, 0xB0, 0xB0)
 local COLOR_GREEN = lcd.RGB(25, 150, 50)
 local COLOR_RED = lcd.RGB(0xE5, 0x20, 0x1E)
+local COLOR_YELLOW = lcd.RGB(0xFF, 0xD0, 0x00)
 local COLOR_BACKGROUND = lcd.RGB(0x08, 0x54, 0x88)
+local COLOR_SKY = lcd.RGB(135, 206, 235)
+local COLOR_EARTH = lcd.RGB(107, 142, 35)
 
 
 ----------------------------------------------------------------------
@@ -42,51 +46,63 @@ end
 
 
 ----------------------------------------------------------------------
--- Top bar
+-- Top Bar
 ----------------------------------------------------------------------
 
-function tmainscreen.DrawTopBar()
+local function getVehicleClassStr(mavsdk)
+    local vc = mavsdk.Vehicle.class
+    if vc == mavsdk.VEHICLECLASS_COPTER then
+        return "Copter"
+    elseif vc == mavsdk.VEHICLECLASS_PLANE then
+        return "Plane"
+    elseif vc == mavsdk.VEHICLECLASS_ROVER then
+        return "Rover"
+    end
+    return "?"
+end
+
+
+function tmainscreen.DrawTopBar(mavsdk)
     local y = -1
 
     lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawText(26, y, model.getInfo().name, CUSTOM_COLOR)
+    lcd.drawText(40, y, getVehicleClassStr(mavsdk)..":"..model.getInfo().name, CUSTOM_COLOR)
 
-    local x = 235
-    local rqField = getFieldInfo("RQ")
-    local lqField = getFieldInfo("LQ")
-    local rq = nil
-    local lq = nil
-    if rqField ~= nil then
-        rq = getValue(rqField.id)
-    end
-    if lqField ~= nil then
-        lq = getValue(lqField.id)
-    end
-    if rq ~= nil then
-        if rq < 50 then
-            lcd.setColor(CUSTOM_COLOR, COLOR_RED)
-        else
-            lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
-        end
+    local rsField = getFieldInfo("1RSS")
+    local tqlyField = getFieldInfo("TQly")
+    local rqlyField = getFieldInfo("RQly")
+
+    local rs = nil
+    local tqly = nil
+    local rqly = nil
+    
+    if rsField ~= nil then rs = getValue(rsField.id) end
+    if tqlyField ~= nil then tqly = getValue(tqlyField.id) end
+    if rqlyField ~= nil then rqly = getValue(rqlyField.id) end
+    
+    local x = 205 -- 235
+    if rs ~= nil then
+        lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
         lcd.drawText(x, y, "RS:",  CUSTOM_COLOR)
-        lcd.drawNumber(x + 42 - 15, y, rq, CUSTOM_COLOR + LEFT)
+        lcd.drawNumber(x + 30, y, rs, CUSTOM_COLOR + LEFT)
     else
         lcd.setColor(CUSTOM_COLOR, COLOR_RED)
         lcd.drawText(x, y, "RS:--", CUSTOM_COLOR + BLINK)
     end
 
-    -- LQ
-    if lq ~= nil then
-        if lq < 30 then
+    x = x + 76
+    if tqly ~= nil and rqly ~= nil then
+        if tqly < 30 or rqly < 30 then
             lcd.setColor(CUSTOM_COLOR, COLOR_RED)
         else
             lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
         end
-        lcd.drawText(x + 66, y, "LQ:", CUSTOM_COLOR)
-        lcd.drawNumber(x + 66 + 42 - 15, y, lq, CUSTOM_COLOR + LEFT)
+        lcd.drawText(x, y, "LQ:", CUSTOM_COLOR)
+        lcd.drawNumber(x + 30, y, tqly, CUSTOM_COLOR + LEFT)
+        lcd.drawNumber(x + 62, y, rqly, CUSTOM_COLOR + LEFT)
     else
         lcd.setColor(CUSTOM_COLOR, COLOR_RED)
-        lcd.drawText(x + 66, y, "LQ:--", CUSTOM_COLOR)
+        lcd.drawText(x, y, "LQ:-- --", CUSTOM_COLOR)
     end
 
     -- Tx voltage
@@ -108,7 +124,7 @@ end
 
 function tmainscreen.DrawFooter(mavsdk, tautopilot)
     -- flight mode
-    local flightMode = "AUTO" --tautopilot.getFlightModeStr(mavsdk)
+    local flightMode = tautopilot.getFlightModeStr(mavsdk)
 
     lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
     lcd.drawText(1, 200, flightMode, CUSTOM_COLOR + DBLSIZE + LEFT)
@@ -121,6 +137,37 @@ function tmainscreen.DrawFooter(mavsdk, tautopilot)
     else
         lcd.setColor(CUSTOM_COLOR, COLOR_RED)
         lcd.drawText(240, 200, "No FIX", CUSTOM_COLOR + DBLSIZE + CENTER)
+    end
+end
+
+
+----------------------------------------------------------------------
+-- StatusText
+----------------------------------------------------------------------
+
+function tmainscreen.drawStatusText(tautopilot, x, y)
+    local statusTextIdx = tautopilot.getStatusText(0)
+    local count = math.min(statusTextIdx, 3)
+
+    for i = 1, count do
+        local idx = (statusTextIdx - count + i - 1) % 12 + 1
+        local _, st = tautopilot.getStatusText(idx)
+
+        local color = COLOR_WHITE
+        if st.severity <= 3 then
+            color = COLOR_RED
+        elseif st.severity <= 5 then
+            color = COLOR_YELLOW
+        end
+
+        lcd.setColor(CUSTOM_COLOR, color)
+
+        local text = st.text
+        if st.count > 1 then
+            text = string.format("%s (%dx)", text, st.count)
+        end
+        
+        lcd.drawText(x, y + (i - 1) * 13, text, CUSTOM_COLOR + SMLSIZE)
     end
 end
 
