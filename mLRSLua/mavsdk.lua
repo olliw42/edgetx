@@ -8,7 +8,7 @@
 -- INIT
 ----------------------------------------------------------------------
 
-local mavsdkPath1 = "/WIDGEST/mLRSMavW/Mavlink/"
+local mavsdkPath1 = "/WIDGETS/mLRSMavW/Mavlink/"
 local mavsdkPath2 = "/SCRIPTS/TOOLS/Mavlink/"
 
 

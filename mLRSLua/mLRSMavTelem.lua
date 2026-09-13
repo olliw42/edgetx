@@ -11,7 +11,7 @@
 
 
 local VERSION = {
-    script = '2026-09-13.02', -- add a '.01' if needed for the day
+    script = '2026-09-13.03', -- add a '.01' if needed for the day
 }
 
 
@@ -37,43 +37,20 @@ end
 -- Load Libraries
 ----------------------------------------------------------------------
 
-local mavsdk
-
-local function mavsdkInit()
-    local scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/mavsdk.lua")
+local function loadLib(libName)
+    local scrpt, err = loadScript("/WIDGETS/mLRSMavW/Mavlink/" .. libName)
     if scrpt == nil then
-        error("Cannot load mavsdk.lua: " .. (err or "unknown error"))
+        scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/" .. libName)
+    end  
+    if scrpt == nil then
+        error("Cannot load " .. libName .. ": " .. (err or "unknown error"))
     end
-    mavsdk = scrpt()
+    return scrpt()
 end
 
-mavsdkInit()
-
-
-local tautopilot
-
-local function tautopilotInit()
-    local scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/tautopilot.lua")
-    if scrpt == nil then
-        error("Cannot load tautopilot.lua: " .. (err or "unknown error"))
-    end
-    tautopilot = scrpt()
-end
-
-tautopilotInit()
-
-
-local tmainscreen
-
-local function tmainscreenInit()
-    local scrpt, err = loadScript("/SCRIPTS/TOOLS/Mavlink/tmainscreen.lua")
-    if scrpt == nil then
-        error("Cannot load tmainscreen.lua: " .. (err or "unknown error"))
-    end
-    tmainscreen = scrpt()
-end
-
-tmainscreenInit()
+local mavsdk = loadLib("mavsdk.lua")
+local tautopilot = loadLib("tautopilot.lua")
+local tmainscreen = loadLib("tmainscreen.lua")
 
 
 ----------------------------------------------------------------------

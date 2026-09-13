@@ -12,7 +12,8 @@
 local tautopilot = {}
 
 
-local bitmapHomePath = "/SCRIPTS/TOOLS/img/"
+local bitmapHomePath1 = "/WIDGETS/mLRSMavW/img/"
+local bitmapHomePath2 = "/SCRIPTS/TOOLS/img/"
 
 
 ----------------------------------------------------------------------
@@ -486,7 +487,10 @@ end
 
 local function drawHomeBitmap(x, y)
     if homeBitmap == nil then
-        homeBitmap = Bitmap.open(bitmapHomePath .. "home.png")
+        homeBitmap = Bitmap.open(bitmapHomePath1 .. "home.png")
+    end
+    if homeBitmap == nil then
+        homeBitmap = Bitmap.open(bitmapHomePath2 .. "home.png")
     end
     lcd.drawBitmap(homeBitmap, x, y)
 end

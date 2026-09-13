@@ -34,13 +34,13 @@ function tmainscreen.DrawBackground()
     -- Top status bar
     lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
     lcd.drawFilledRectangle(
-        0, 0, 480, 19,
+        0, 0, LCD_W, 19,
         CUSTOM_COLOR)
 
     -- Bottom status area
     lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
     lcd.drawFilledRectangle(
-        0, 200, 480, 272 - 200,
+        0, 200, LCD_W, LCD_H - 200,
         CUSTOM_COLOR)
 end
 
@@ -148,6 +148,11 @@ end
 function tmainscreen.drawStatusText(tautopilot, x, y)
     local statusTextIdx = tautopilot.getStatusText(0)
     local count = math.min(statusTextIdx, 3)
+    
+    if LCD_H == 320 then -- Jumper T15
+        y = y + 13
+        count = math.min(statusTextIdx, 5)
+    end  
 
     for i = 1, count do
         local idx = (statusTextIdx - count + i - 1) % 12 + 1
