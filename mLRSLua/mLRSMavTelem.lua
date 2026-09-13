@@ -126,9 +126,8 @@ end
 ----------------------------------------------------------------------
 ----------------------------------------------------------------------
 
-local function Do(event)
-    lcd.clear()
 
+local function doIt()
     -- MAVLink
     mavsdk.Do() -- mavsdk standard do routine, receives, and handled
     mavlinkDo() -- our handler to send
@@ -143,7 +142,10 @@ local function Do(event)
             tautopilot.onDisconnect()
         end
     end
+end
 
+
+local function drawIt(event)
     -- Main Screen
     tmainscreen.DrawBackground()
     tmainscreen.DrawTopBar(mavsdk)
@@ -209,6 +211,13 @@ local function Do(event)
 
     debugDraw(450, 180)
     
+end
+
+
+local function Do(event)
+    lcd.clear()
+    doIt()
+    drawIt(event)
 end
 
 

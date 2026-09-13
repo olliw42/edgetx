@@ -151,8 +151,6 @@ end
 
 
 local function drawIt(event)
-    lcd.clear()
-
     -- Main Screen
     tmainscreen.DrawBackground()
     tmainscreen.DrawTopBar(mavsdk)
@@ -252,6 +250,7 @@ end
 local function refresh(widget, event, touchState)
     background(widget)
     --doIt()    
+    lcd.clear()
     drawIt(event)
 end
 
