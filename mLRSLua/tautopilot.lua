@@ -9,11 +9,13 @@
 -- INIT
 ----------------------------------------------------------------------
 
-local tautopilot = {}
-
-
 local resourcesPath1 = "/WIDGETS/mLRSMavW/"
 local resourcesPath2 = "/SCRIPTS/TOOLS/"
+
+
+local ui = ...
+
+local tautopilot = {}
 
 
 ----------------------------------------------------------------------
@@ -262,19 +264,6 @@ end
 -- DRAW FUNCTIONS
 ----------------------------------------------------------------------
 
--- Colors
-
-local COLOR_WHITE = lcd.RGB(0xFF, 0xFF, 0xFF)
-local COLOR_BLACK = lcd.RGB(0x00, 0x00, 0x00)
-local COLOR_LIGHTGREY = lcd.RGB(0xB0, 0xB0, 0xB0)
-local COLOR_GREEN = lcd.RGB(25, 150, 50)
-local COLOR_RED = lcd.RGB(0xE5, 0x20, 0x1E)
-local COLOR_YELLOW = lcd.RGB(0xFF, 0xD0, 0x00)
-local COLOR_BACKGROUND = lcd.RGB(0x08, 0x54, 0x88)
-local COLOR_SKY = lcd.RGB(135, 206, 235)
-local COLOR_EARTH = lcd.RGB(107, 142, 35)
-
-
 ----------------------------------------------------------------------
 -- HUD
 ----------------------------------------------------------------------
@@ -291,7 +280,7 @@ local function tiltedLineWithClipping(ox, oy, angle, len, xmin, xmax, ymin, ymax
     local y0 = oy - yy
     local y1 = oy + yy
 
-    lcd.drawLineWithClipping(
+    ui.drawLineWithClipping(
         x0, y0, x1, y1,
         xmin, xmax, ymin, ymax,
         DOTTED, CUSTOM_COLOR)
@@ -317,14 +306,14 @@ local function drawHudFrame(mavsdk, x, y, h)
     local maxX = x + 120
 
     -- sky
-    lcd.setColor(CUSTOM_COLOR, COLOR_SKY)
-    lcd.drawFilledRectangle(
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_SKY)
+    ui.drawFilledRectangle(
         minX, minY, maxX - minX, maxY - minY,
         CUSTOM_COLOR + SOLID)
 
     -- earth / artificial horizon
-    lcd.setColor(CUSTOM_COLOR, COLOR_EARTH)
-    lcd.drawHudRectangle(
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_EARTH)
+    ui.drawHudRectangle(
         pitch, roll,
         minX, maxX, minY, maxY,
         CUSTOM_COLOR)
@@ -345,7 +334,7 @@ local function drawHudFrame(mavsdk, x, y, h)
     end
 
     -- pitch ladder
-    lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
     for i = 1, 8 do
         tiltedLineWithClipping(
             ox - i * cx,
@@ -368,8 +357,8 @@ local function drawHudFrame(mavsdk, x, y, h)
     end
 
     -- aircraft reference
-    lcd.setColor(CUSTOM_COLOR, COLOR_RED)
-    lcd.drawFilledRectangle(
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_RED)
+    ui.drawFilledRectangle(
         (minX + maxX) / 2 - 25, (minY + maxY) / 2, 50, 2,
         CUSTOM_COLOR)
 end
@@ -395,16 +384,11 @@ local function drawHudCompassRibbon(mavsdk, x, y)
     for i = 1, 12 do
         if tickX >= minX and tickX < maxX then
             if hudCompassTicks[tickIdx + 1] == nil then
-                lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
-                lcd.drawLine(
-                    tickX, y, tickX, y + 10,
-                    SOLID, CUSTOM_COLOR)
+                lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
+                ui.drawLine(tickX, y, tickX, y + 10, SOLID, CUSTOM_COLOR)
             else
-                lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
-                lcd.drawText(
-                    tickX, y - 3,
-                    hudCompassTicks[tickIdx + 1],
-                    CUSTOM_COLOR + CENTER)
+                lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
+                ui.drawText(tickX, y - 3, hudCompassTicks[tickIdx + 1], CUSTOM_COLOR + ui.DFLT + CENTER)
             end
         end
         tickIdx = (tickIdx + 1) % 16
@@ -418,15 +402,10 @@ local function drawHudCompassRibbon(mavsdk, x, y)
     elseif heading < 100 then
         w = 40
     end
-    lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
-    lcd.drawFilledRectangle(
-        x - w / 2, y, w, 28,
-        CUSTOM_COLOR + SOLID)
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawNumber(
-        x, y - 6,
-        heading,
-        CUSTOM_COLOR + DBLSIZE + CENTER)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
+    ui.drawFilledRectangle(x - w / 2, y, w, 28, CUSTOM_COLOR + SOLID)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawNumber(x, y - 6, heading, CUSTOM_COLOR + ui.DBL + CENTER)
 end
 
 -- Ground speed
@@ -436,26 +415,15 @@ local function drawHudGroundSpeed(mavsdk, x, y)
         groundSpeed = mavsdk.VfrHud.groundspeed
     end
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
-    lcd.drawText(
-        x,  y - 17 + 2,
-        "SPD",
-        CUSTOM_COLOR + SMLSIZE)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
+    ui.drawText(x,  y - 17 + 2, "SPD", CUSTOM_COLOR + ui.SML)
 
-    lcd.drawFilledRectangle(
-        x, y, 70, 28,
-        CUSTOM_COLOR + SOLID)
-    lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
+    ui.drawFilledRectangle(x, y, 70, 28, CUSTOM_COLOR + SOLID)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_GREEN)
     if math.abs(groundSpeed) >= 10 then
-        lcd.drawNumber(
-            x + 2, y - 5,
-            groundSpeed,
-            CUSTOM_COLOR + DBLSIZE + LEFT)
+        ui.drawNumber(x + 2, y - 5, groundSpeed, CUSTOM_COLOR + ui.DBL + LEFT)
     else
-        lcd.drawNumber(
-            x + 2, y - 5,
-            groundSpeed * 10,
-            CUSTOM_COLOR + DBLSIZE + LEFT + PREC1)
+        ui.drawNumber(x + 2, y - 5, groundSpeed * 10, CUSTOM_COLOR + ui.DBL + LEFT + PREC1)
     end
 end
 
@@ -466,31 +434,17 @@ local function drawHudAltitude(mavsdk, x, y)
         altitude = mavsdk.VfrHud.alt
     end
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
-    lcd.drawText(
-        x, y - 17 + 2,
-        "ALT",
-        CUSTOM_COLOR + SMLSIZE + RIGHT)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
+    ui.drawText(x, y - 17 + 2, "ALT", CUSTOM_COLOR + ui.SML + RIGHT)
 
-    lcd.drawFilledRectangle(
-        x - 70, y, 70, 28,
-        CUSTOM_COLOR + SOLID)
-    lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
+    ui.drawFilledRectangle(x - 70, y, 70, 28, CUSTOM_COLOR + SOLID)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_GREEN)
     if math.abs(altitude) > 99 then
-        lcd.drawNumber(
-            x - 2, y,
-            altitude,
-            CUSTOM_COLOR + MIDSIZE + RIGHT)
+        ui.drawNumber(x - 2, y, altitude, CUSTOM_COLOR + ui.MID + RIGHT)
     elseif math.abs(altitude) >= 10 then
-        lcd.drawNumber(
-            x - 2, y - 5,
-            altitude,
-            CUSTOM_COLOR + DBLSIZE + RIGHT)
+        ui.drawNumber(x - 2, y - 5, altitude, CUSTOM_COLOR + ui.DBL + RIGHT)
     else
-        lcd.drawNumber(
-            x - 2, y - 5,
-            altitude * 10,
-            CUSTOM_COLOR + DBLSIZE + RIGHT + PREC1)
+        ui.drawNumber(x - 2, y - 5, altitude * 10, CUSTOM_COLOR + ui.DBL + RIGHT + PREC1)
     end
 end
 
@@ -501,15 +455,10 @@ local function drawHudVerticalSpeed(mavsdk, x, y)
         verticalSpeed = mavsdk.VfrHud.climb
     end
     
-    lcd.setColor(CUSTOM_COLOR, COLOR_BLACK)
-    lcd.drawFilledRectangle(
-        x - 30, y, 60, 20,
-        CUSTOM_COLOR + SOLID)
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawNumber(
-        x, y - 4,
-        verticalSpeed * 10,
-        CUSTOM_COLOR + MIDSIZE + CENTER + PREC1)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
+    ui.drawFilledRectangle(x - 30, y, 60, 20, CUSTOM_COLOR + SOLID)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawNumber(x, y - 4, verticalSpeed * 10, CUSTOM_COLOR + ui.MID + CENTER + PREC1)
 end
 
 
@@ -560,8 +509,7 @@ local function calcHomeAngle(mavsdk)
     local lat0 = homePos.lat
     local lon0 = homePos.lon
 
-    local xScale =
-        math.cos(math.rad((lat1 + lat0) * 1e-7) * 0.5)
+    local xScale = math.cos(math.rad((lat1 + lat0) * 1e-7) * 0.5)
 
     local x = math.rad(0.6371) * (lon1 - lon0) * xScale
     local y = math.rad(0.6371) * (lat1 - lat0)
@@ -583,7 +531,7 @@ local function drawHomeBitmap(x, y)
     if homeBitmap == nil then
         homeBitmap = Bitmap.open(resourcesPath2 .. "img/home.png")
     end
-    lcd.drawBitmap(homeBitmap, x, y)
+    ui.drawBitmap(homeBitmap, x, y)
 end
 
 
@@ -659,8 +607,8 @@ end
 -- GPS Status
 -- gpsId 1: GPS1, 2: GPS2
 function tautopilot.DrawGpsStatus(mavsdk, gpsId, x, y, dy)
-    local txtsize1 = MIDSIZE
-    local txtsize2 = DBLSIZE
+    local txtsize1 = ui.MID
+    local txtsize2 = ui.DBL
     local gps = nil
     if gpsId == 1 then
         gps = mavsdk.GpsRawInt
@@ -677,42 +625,36 @@ function tautopilot.DrawGpsStatus(mavsdk, gpsId, x, y, dy)
 
     -- GPS fix
     if gpsfix >= 3 then -- GPS_FIX_TYPE_3D_FIX
-        lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_GREEN)
     else
-        lcd.setColor(CUSTOM_COLOR, COLOR_RED)
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_RED)
     end
     local fixstr = "No FIX"
     if gpsfix >= 3 then
         fixstr = "3D FIX"
     end
-    lcd.drawText(x, y + 8, fixstr, CUSTOM_COLOR + txtsize1 + LEFT)
+    ui.drawText(x, y + 8, fixstr, CUSTOM_COLOR + txtsize1 + LEFT)
 
     -- Satellites
     if gpssat > 99 then
         gpssat = 0
     end
     if gpssat > 5 and gpsfix >= 3 then
-        lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_GREEN)
     else
-        lcd.setColor(CUSTOM_COLOR, COLOR_RED)
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_RED)
     end
-    lcd.drawNumber(x + 3, y + 30 + dy, gpssat, CUSTOM_COLOR + txtsize2)
+    ui.drawNumber(x + 3, y + 30 + dy, gpssat, CUSTOM_COLOR + txtsize2)
 
     -- HDOP
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
     if hdop >= 10 then
         if hdop > 99 then
             hdop = 99
         end
-        lcd.drawNumber(
-            x + 53, y + 30 + dy,
-            hdop,
-            CUSTOM_COLOR + txtsize2)
+        ui.drawNumber(x + 53, y + 30 + dy, hdop, CUSTOM_COLOR + txtsize2)
     else
-        lcd.drawNumber(
-            x + 53, y + 30 + dy,
-            hdop * 10,
-            CUSTOM_COLOR + txtsize2 + PREC1)
+        ui.drawNumber(x + 53, y + 30 + dy, hdop * 10, CUSTOM_COLOR + txtsize2 + PREC1)
     end
 end
 
@@ -738,15 +680,9 @@ function tautopilot.DrawGpsCoords(mavsdk, sourceId, x, y)
     lat = source.lat * 1e-7
     lon = source.lon * 1e-7
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawText(
-        x, y,
-        latLonToDms(lat, false),
-        CUSTOM_COLOR)
-    lcd.drawText(
-        x, y + 16,
-        latLonToDms(lon, true),
-        CUSTOM_COLOR)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawText(x, y, latLonToDms(lat, false), CUSTOM_COLOR + ui.DFLT)
+    ui.drawText(x, y + 16, latLonToDms(lon, true), CUSTOM_COLOR + ui.DFLT)
 end
 
 
@@ -764,15 +700,9 @@ function tautopilot.DrawBatteryVoltage(mavsdk, x, y)
     -- MAVLink: millivolts, UINT16_MAX means unknown
     voltage = voltage * 0.001
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawNumber(
-        x - 18, y,
-        voltage * 100,
-        CUSTOM_COLOR + DBLSIZE + RIGHT + PREC2)
-    lcd.drawText(
-        x - 2, y + 14,
-        "V",
-        CUSTOM_COLOR + RIGHT)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawNumber(x - 18, y, voltage * 100, CUSTOM_COLOR + ui.DBL + RIGHT + PREC2)
+    ui.drawText(x - 2, y + 14, "V", CUSTOM_COLOR + ui.DFLT + RIGHT)
 end
 
 
@@ -789,16 +719,9 @@ function tautopilot.DrawBatteryCurrent(mavsdk, x, y)
     end
     current = current * 0.01
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawNumber(
-        x - 18, y,
-        current * 10,
-        CUSTOM_COLOR + DBLSIZE + RIGHT + PREC1)
-
-    lcd.drawText(
-        x - 2, y + 14,
-        "A",
-        CUSTOM_COLOR + RIGHT)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawNumber(x - 18, y, current * 10, CUSTOM_COLOR + ui.DBL + RIGHT + PREC1)
+    ui.drawText(x - 2, y + 14, "A", CUSTOM_COLOR + ui.DFLT + RIGHT)
 end
 
 
@@ -814,15 +737,9 @@ function tautopilot.DrawBatteryRemaining(mavsdk, x, y)
         return
     end
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawNumber(
-        x - 18, y,
-        remaining,
-        CUSTOM_COLOR + DBLSIZE + RIGHT)
-    lcd.drawText(
-        x - 2, y + 14,
-        "%",
-        CUSTOM_COLOR + RIGHT)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawNumber(x - 18, y, remaining, CUSTOM_COLOR + ui.DBL + RIGHT)
+    ui.drawText(x - 2, y + 14, "%", CUSTOM_COLOR + ui.DFLT + RIGHT)
 end
 
 
@@ -838,15 +755,9 @@ function tautopilot.DrawBatteryCharge(mavsdk, x, y)
         return
     end
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawNumber(
-        x - 40, y + 7,
-        charge,
-        CUSTOM_COLOR + MIDSIZE + RIGHT)
-    lcd.drawText(
-        x - 1, y + 14,
-        "mAh",
-        CUSTOM_COLOR + RIGHT)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawNumber(x - 40, y + 7, charge, CUSTOM_COLOR + ui.MID + RIGHT)
+    ui.drawText(x - 1, y + 14, "mAh", CUSTOM_COLOR + ui.DFLT + RIGHT)
 end
 
 
@@ -862,32 +773,20 @@ function tautopilot.DrawSpeeds(mavsdk, x, y)
     local groundSpeed = mavsdk.VfrHud.groundspeed
     local airSpeed = mavsdk.VfrHud.airspeed
 
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawText(
-        x, y,
-        string.format("GS %.1f m/s", groundSpeed),
-        CUSTOM_COLOR)
-    lcd.drawText(
-        x, y + 24,
-        string.format("AS %.1f m/s", airSpeed),
-        CUSTOM_COLOR)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawText(x, y, string.format("GS %.1f m/s", groundSpeed), CUSTOM_COLOR + ui.DFLT)
+    ui.drawText(x, y + 24, string.format("AS %.1f m/s", airSpeed), CUSTOM_COLOR + ui.DFLT)
 end
 
 
 -- Arming Status
 function tautopilot.DrawArmingStatus(mavsdk, x, y)
     if mavsdk.Vehicle.is_armed then
-        lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
-        lcd.drawText(
-            x, y,
-            "ARMED",
-            CUSTOM_COLOR + MIDSIZE + CENTER)
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_GREEN)
+        ui.drawText(x, y, "ARMED", CUSTOM_COLOR + ui.MID + CENTER)
     else
-        lcd.setColor(CUSTOM_COLOR, COLOR_YELLOW)
-        lcd.drawText(
-            x, y,
-            "DISARMED",
-            CUSTOM_COLOR + MIDSIZE + CENTER)
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_YELLOW)
+        ui.drawText(x, y, "DISARMED", CUSTOM_COLOR + ui.MID + CENTER)
     end
 end
 

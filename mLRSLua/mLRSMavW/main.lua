@@ -33,7 +33,7 @@ end
 
 local function debugDraw(x, y)
     for i = 1, #debugLines do
-        lcd.drawText(x, y + (i - 1) * 18, debugLines[i])
+        ui.drawText(x, y + (i - 1) * 18, debugLines[i])
     end
 end
 
@@ -41,6 +41,8 @@ end
 ----------------------------------------------------------------------
 -- Load Libraries
 ----------------------------------------------------------------------
+
+local ui
 
 local function loadLib(libName)
     local scrpt, err = loadScript("/WIDGETS/mLRSMavW/Mavlink/" .. libName)
@@ -50,9 +52,10 @@ local function loadLib(libName)
     if scrpt == nil then
         error("Cannot load " .. libName .. ": " .. (err or "unknown error"))
     end
-    return scrpt()
+    return scrpt(ui)
 end
 
+ui = loadLib("tui.lua")
 local mavsdk = loadLib("mavsdk.lua")
 local tautopilot = loadLib("tautopilot.lua")
 local tmainscreen = loadLib("tmainscreen.lua")
@@ -108,23 +111,18 @@ end
 -- Warning Box
 ----------------------------------------------------------------------
 
-local COLOR_WHITE = lcd.RGB(0xFF, 0xFF, 0xFF)
---local COLOR_BLACK = lcd.RGB(0x00, 0x00, 0x00)
-local COLOR_RED = lcd.RGB(0xE5, 0x20, 0x1E)
-
-
 local function drawDisconnected()
     local w = 360
     local h = 90
     local x = (480 - w) / 2
     local y = (220 - h) / 2
     
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawFilledRectangle(x - 2, y - 2, w + 4, h + 4, CUSTOM_COLOR)
-    lcd.setColor(CUSTOM_COLOR, COLOR_RED)
-    lcd.drawFilledRectangle(x, y, w, h, CUSTOM_COLOR)
-    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawText(x + w / 2,  y + 18, "no telemetry data", CUSTOM_COLOR + DBLSIZE + CENTER)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawFilledRectangle(x - 2, y - 2, w + 4, h + 4, CUSTOM_COLOR)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_RED)
+    ui.drawFilledRectangle(x, y, w, h, CUSTOM_COLOR)
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawText(x + w / 2,  y + 18, "no telemetry data", CUSTOM_COLOR + ui.DBL + CENTER)
 end
 
 
