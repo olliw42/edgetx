@@ -1,0 +1,7 @@
+local AVAILABLE_MODES_MONITOR = {}
+AVAILABLE_MODES_MONITOR.id = 437
+AVAILABLE_MODES_MONITOR.crc_extra = 30
+AVAILABLE_MODES_MONITOR.fields = {
+             { "seq", "<B" },
+             }
+return AVAILABLE_MODES_MONITOR
