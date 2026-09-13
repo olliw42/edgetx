@@ -12,8 +12,8 @@
 local tautopilot = {}
 
 
-local bitmapHomePath1 = "/WIDGETS/mLRSMavW/img/"
-local bitmapHomePath2 = "/SCRIPTS/TOOLS/img/"
+local resourcesPath1 = "/WIDGETS/mLRSMavW/"
+local resourcesPath2 = "/SCRIPTS/TOOLS/"
 
 
 ----------------------------------------------------------------------
@@ -105,6 +105,7 @@ function tautopilot.getFlightModeStr(mavsdk)
     if mavsdk.Heartbeat == nil then return "unknown" end 
     local fm = mavsdk.Heartbeat.custom_mode
     local vc = mavsdk.Vehicle.class
+    
     local fmstr = nil
     if vc == mavsdk.VEHICLECLASS_COPTER then
         fmstr = apCopterFlightModes[fm][1]
@@ -114,8 +115,86 @@ function tautopilot.getFlightModeStr(mavsdk)
         fmstr = apRoverFlightModes[fm][1]
     end    
     if fmstr == nil then fmstr = "unknown" end
+    
     return fmstr
 end    
+
+
+local function getFlightModeSound(mavsdk)
+    if mavsdk.Heartbeat == nil then return nil end
+    local fm = mavsdk.Heartbeat.custom_mode
+    local vc = mavsdk.Vehicle.class
+
+    local flightModes = nil
+    if vc == mavsdk.VEHICLECLASS_COPTER then
+        flightModes = apCopterFlightModes
+    elseif vc == mavsdk.VEHICLECLASS_PLANE then
+        flightModes = apPlaneFlightModes
+    elseif vc == mavsdk.VEHICLECLASS_ROVER then
+        flightModes = apRoverFlightModes
+    end
+
+    if flightModes == nil or flightModes[fm] == nil then
+        return nil
+    end
+
+    return flightModes[fm][2]
+end
+
+
+local soundsPath = nil
+local lastFlightMode = nil
+
+
+local function playSound(sound)
+    if soundsPath == nil then
+        if fstat(resourcesPath1 .. "sounds/fmacro.wav") then
+            soundsPath = resourcesPath1 .. "sounds/"
+        elseif fstat(resourcesPath2 .. "sounds/fmacro.wav") then
+            soundsPath = resourcesPath2 .. "sounds/"
+        end
+    end
+    if soundsPath ~= nil then
+        playFile(soundsPath .. sound .. ".wav")
+    end
+end
+
+
+function tautopilot.soundDo(mavsdk)
+    -- handle connected state
+    if mavsdk.Vehicle.connected_has_changed then 
+        if mavsdk.Vehicle.is_connected then
+            playSound("telok")
+        else
+            playSound("tellost")
+        end
+    end
+    
+    if not mavsdk.Vehicle.is_connected then -- don't do any other if not connected
+        return
+    end    
+    
+    -- handle arm state
+    if mavsdk.Vehicle.arm_has_changed then 
+        if mavsdk.Vehicle.is_armed then
+            playSound("armed")
+        else
+            playSound("disarmed")
+        end
+    end
+    -- handle flight mode
+    if mavsdk.Heartbeat ~= nil then
+        local fm = mavsdk.Heartbeat.custom_mode
+        if fm ~= lastFlightMode then -- change detected
+            lastFlightMode = fm
+    
+            local sound = getFlightModeSound(mavsdk)
+            if sound ~= nil then
+                playSound(sound)
+            end
+        end    
+    end
+end
 
 
 ----------------------------------------------------------------------
@@ -437,8 +516,8 @@ end
 -- HUD HOME Indicator
 ----------------------------------------------------------------------
 
-local homePos = nil
 local homeBitmap = nil
+local homePos = nil
 
 
 local function updateHomePosition(mavsdk)
@@ -487,10 +566,10 @@ end
 
 local function drawHomeBitmap(x, y)
     if homeBitmap == nil then
-        homeBitmap = Bitmap.open(bitmapHomePath1 .. "home.png")
+        homeBitmap = Bitmap.open(resourcesPath1 .. "img/home.png")
     end
     if homeBitmap == nil then
-        homeBitmap = Bitmap.open(bitmapHomePath2 .. "home.png")
+        homeBitmap = Bitmap.open(resourcesPath2 .. "img/home.png")
     end
     lcd.drawBitmap(homeBitmap, x, y)
 end
@@ -800,6 +879,19 @@ function tautopilot.DrawArmingStatus(mavsdk, x, y)
     end
 end
 
+
+----------------------------------------------------------------------
+-- Connect/Disconnect Handler
+----------------------------------------------------------------------
+
+function tautopilot.onConnect()
+end
+
+function tautopilot.onDisconnect()
+    lastFlightMode = nil
+    statusText = {}
+    statusTextIdx = 0
+end
 
 
 ----------------------------------------------------------------------

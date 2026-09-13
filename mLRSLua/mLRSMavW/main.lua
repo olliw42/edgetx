@@ -11,7 +11,7 @@ local widgetName = "mLRSMavW"
 
 
 local VERSION = {
-    script = '2026-09-13.03', -- add a '.01' if needed for the day
+    script = '2026-09-13.04', -- add a '.01' if needed for the day
 }
 
 
@@ -105,6 +105,30 @@ end
 
 
 ----------------------------------------------------------------------
+-- Warning Box
+----------------------------------------------------------------------
+
+local COLOR_WHITE = lcd.RGB(0xFF, 0xFF, 0xFF)
+--local COLOR_BLACK = lcd.RGB(0x00, 0x00, 0x00)
+local COLOR_RED = lcd.RGB(0xE5, 0x20, 0x1E)
+
+
+local function drawDisconnected()
+    local w = 360
+    local h = 90
+    local x = (480 - w) / 2
+    local y = (220 - h) / 2
+    
+    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
+    lcd.drawFilledRectangle(x - 2, y - 2, w + 4, h + 4, CUSTOM_COLOR)
+    lcd.setColor(CUSTOM_COLOR, COLOR_RED)
+    lcd.drawFilledRectangle(x, y, w, h, CUSTOM_COLOR)
+    lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
+    lcd.drawText(x + w / 2,  y + 18, "no telemetry data", CUSTOM_COLOR + DBLSIZE + CENTER)
+end
+
+
+----------------------------------------------------------------------
 ----------------------------------------------------------------------
 
 
@@ -114,6 +138,15 @@ local function doIt()
     mavlinkDo() -- our handler to send
 
     tautopilot.statusTextDo(mavsdk)
+    tautopilot.soundDo(mavsdk)
+    
+    if mavsdk.Vehicle.connected_has_changed then 
+        if mavsdk.Vehicle.is_connected then
+            tautopilot.onConnect()
+        else
+            tautopilot.onDisconnect()
+        end
+    end
 end
 
 
@@ -160,6 +193,11 @@ local function drawIt(event)
 
     -- status bar / status text follow here
     tmainscreen.drawStatusText(tautopilot, 5, 230)
+    
+    -- warning box
+    if not mavsdk.Vehicle.is_connected then
+        drawDisconnected()
+    end
 
 
 --[[    -- display
