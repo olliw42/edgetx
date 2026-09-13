@@ -40,6 +40,7 @@ local GPS_RAW_INT = loadMavlinkMessageModule("GPS_RAW_INT")
 local GPS2_RAW = loadMavlinkMessageModule("GPS2_RAW")
 local GLOBAL_POSITION_INT = loadMavlinkMessageModule("GLOBAL_POSITION_INT")
 local BATTERY_STATUS = loadMavlinkMessageModule("BATTERY_STATUS")
+local EKF_STATUS_REPORT = loadMavlinkMessageModule("EKF_STATUS_REPORT")
 
 mavsdk.HEARTBEAT = HEARTBEAT
 mavsdk.SYS_STATUS = SYS_STATUS
@@ -50,6 +51,7 @@ mavsdk.GPS_RAW_INT = GPS_RAW_INT
 mavsdk.GPS2_RAW = GPS2_RAW
 mavsdk.GLOBAL_POSITION_INT = GLOBAL_POSITION_INT
 mavsdk.BATTERY_STATUS = BATTERY_STATUS
+mavsdk.EKF_STATUS_REPORT = EKF_STATUS_REPORT
 
 mavsdk.Heartbeat = nil
 mavsdk.SysStatus = nil
@@ -60,6 +62,7 @@ mavsdk.GpsRawInt = nil
 mavsdk.Gps2Raw = nil
 mavsdk.GlobalPositionInt = nil
 mavsdk.BatteryStatus = nil
+mavsdk.EkfStatusReport = nil
 
 
 ----------------------------------------------------------------------
@@ -250,13 +253,13 @@ local function handleMessage(msg)
             mavsdk.SysStatus = payload
         end
 
-    elseif msg.msgid == ATTITUDE.id then
+    elseif msg.msgid == ATTITUDE.id then  -- AP STREAM EXTRA1
         local payload = mavlinkDecode(ATTITUDE, msg)
         if payload ~= nil then
             mavsdk.Attitude = payload
         end
 
-    elseif msg.msgid == VFR_HUD.id then
+    elseif msg.msgid == VFR_HUD.id then  -- AP STREAM EXTRA2
         local payload = mavlinkDecode(VFR_HUD, msg)
         if payload ~= nil then
             mavsdk.VfrHud = payload
@@ -269,25 +272,25 @@ local function handleMessage(msg)
             mavsdk.StatusText.updated = true
         end
         
-    elseif msg.msgid == GPS_RAW_INT.id then
+    elseif msg.msgid == GPS_RAW_INT.id then  -- AP STREAM EXTENDED_STATUS
         local payload = mavlinkDecode(GPS_RAW_INT, msg)
         if payload ~= nil then
             mavsdk.GpsRawInt = payload
         end
         
-    elseif msg.msgid == GPS2_RAW.id then
+    elseif msg.msgid == GPS2_RAW.id then  -- AP STREAM EXTENDED_STATUS
         local payload = mavlinkDecode(GPS2_RAW, msg)
         if payload ~= nil then
             mavsdk.Gps2Raw = payload
         end
         
-    elseif msg.msgid == GLOBAL_POSITION_INT.id then
+    elseif msg.msgid == GLOBAL_POSITION_INT.id then  -- AP STREAM STREAM_POSITION
         local payload = mavlinkDecode(GLOBAL_POSITION_INT, msg)
         if payload ~= nil then
             mavsdk.GlobalPositionInt = payload
         end
         
-    elseif msg.msgid == BATTERY_STATUS.id then
+    elseif msg.msgid == BATTERY_STATUS.id then  -- AP STREAM EXTRA3
         local payload = mavlinkDecode(BATTERY_STATUS, msg)
         if payload ~= nil then
             mavsdk.BatteryStatus = payload
@@ -314,6 +317,12 @@ local function handleMessage(msg)
             if not validcellcount then cellcount = -1 end
             mavsdk.BatteryStatus.voltage = voltage
             mavsdk.BatteryStatus.cellcount = cellcount
+        end
+        
+    elseif msg.msgid == EKF_STATUS_REPORT.id then  -- AP STREAM EXTRA3
+        local payload = mavlinkDecode(EKF_STATUS_REPORT, msg)
+        if payload ~= nil then
+            mavsdk.EkfStatusReport = payload
         end
         
     else
@@ -352,6 +361,30 @@ function mavsdk.GetStats()
         rxSize = rxSize,
         rxSeqErrorCount = rxSeqErrorCount,
     }
+end
+
+
+----------------------------------------------------------------------
+-- Convenience Functions
+----------------------------------------------------------------------
+
+function mavsdk.positionOk()
+    local gps = mavsdk.GpsRawInt
+    if gps == nil or gps.fix_type < 3 or gps.satellites_visible < 7 then
+        return false
+    end
+
+    if mavsdk.Vehicle.class == mavsdk.VEHICLECLASS_COPTER then -- do only for copter
+        local ekf = mavsdk.EkfStatusReport
+        if ekf ~= nil then -- TODO: what to do if we don't get it? never posfix or ignore?
+            -- EKF_VELOCITY_HORIZ = 2
+            -- EKF_POS_HORIZ_ABS = 16
+            if (ekf.flags & 2) == 0 then return false end
+            if (ekf.flags & 16) == 0 then return false end
+        end    
+    end
+    
+    return true
 end
 
 

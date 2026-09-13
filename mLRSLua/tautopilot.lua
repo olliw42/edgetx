@@ -198,16 +198,13 @@ function tautopilot.soundDo(mavsdk)
     end
     
     -- handle pos fix
-    if mavsdk.GpsRawInt ~= nil then
-        local gps = mavsdk.GpsRawInt
-        if gps.fix_type >= 3 and gps.satellites_visible >= 7 then
-            if not lastPositionFix then
-                playSound("posfix")
-            end    
-            lastPositionFix = true
-        else
-            lastPositionFix = false
-        end          
+    if mavsdk.positionOk() then    
+        if not lastPositionFix then
+            playSound("posfix")
+        end    
+        lastPositionFix = true
+    else
+        lastPositionFix = false
     end
 end
 

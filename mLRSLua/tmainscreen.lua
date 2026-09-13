@@ -129,9 +129,8 @@ function tmainscreen.DrawFooter(mavsdk, tautopilot)
     lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
     lcd.drawText(1, 200, flightMode, CUSTOM_COLOR + DBLSIZE + LEFT)
 
-    -- GPS fix
-    local gps = mavsdk.GpsRawInt
-    if gps ~= nil and gps.fix_type >= 3 and gps.satellites_visible >= 7 then
+    -- POS fix
+    if mavsdk.positionOk() then
         lcd.setColor(CUSTOM_COLOR, COLOR_GREEN)
         lcd.drawText(240, 200, "POS FIX", CUSTOM_COLOR + DBLSIZE + CENTER)
     else
