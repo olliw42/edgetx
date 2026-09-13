@@ -66,7 +66,7 @@ function tmainscreen.DrawTopBar(mavsdk)
     local y = -1
 
     lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-    lcd.drawText(40, y, getVehicleClassStr(mavsdk)..":"..model.getInfo().name, CUSTOM_COLOR)
+    lcd.drawText(45, y, getVehicleClassStr(mavsdk)..":"..model.getInfo().name, CUSTOM_COLOR)
 
     local rsField = getFieldInfo("1RSS")
     local tqlyField = getFieldInfo("TQly")
@@ -80,7 +80,7 @@ function tmainscreen.DrawTopBar(mavsdk)
     if tqlyField ~= nil then tqly = getValue(tqlyField.id) end
     if rqlyField ~= nil then rqly = getValue(rqlyField.id) end
     
-    local x = 205 -- 235
+    local x = 225 -- 235
     if rs ~= nil then
         lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
         lcd.drawText(x, y, "RS:",  CUSTOM_COLOR)
@@ -113,7 +113,7 @@ function tmainscreen.DrawTopBar(mavsdk)
     end
     if txVoltage ~= nil then
         lcd.setColor(CUSTOM_COLOR, COLOR_WHITE)
-        lcd.drawText(394, y, string.format("Tx:%.1fv", txVoltage), CUSTOM_COLOR)
+        lcd.drawText(394+30, y, string.format("Tx:%.1fv", txVoltage), CUSTOM_COLOR)
     end
 end
 
