@@ -144,6 +144,7 @@ end
 
 local soundsPath = nil
 local lastFlightMode = nil
+local lastPositionFix = nil
 
 
 local function playSound(sound)
@@ -182,6 +183,7 @@ function tautopilot.soundDo(mavsdk)
             playSound("disarmed")
         end
     end
+
     -- handle flight mode
     if mavsdk.Heartbeat ~= nil then
         local fm = mavsdk.Heartbeat.custom_mode
@@ -193,6 +195,19 @@ function tautopilot.soundDo(mavsdk)
                 playSound(sound)
             end
         end    
+    end
+    
+    -- handle pos fix
+    if mavsdk.GpsRawInt ~= nil then
+        local gps = mavsdk.GpsRawInt
+        if gps.fix_type >= 3 and gps.satellites_visible >= 7 then
+            if not lastPositionFix then
+                playSound("posfix")
+            end    
+            lastPositionFix = true
+        else
+            lastPositionFix = false
+        end          
     end
 end
 
@@ -889,6 +904,7 @@ end
 
 function tautopilot.onDisconnect()
     lastFlightMode = nil
+    lastPositionFix = nil
     statusText = {}
     statusTextIdx = 0
 end
