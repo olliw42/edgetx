@@ -151,12 +151,33 @@ static void setupPulsesCrossfire(uint8_t module, uint8_t*& p_buf,
                                  uint8_t nChannels)
 {
 #if defined(LUA)
-  if (outputTelemetryBuffer.destination == endpoint) {
+//OW============
+//  if (outputTelemetryBuffer.destination == endpoint) {
+//    auto len = outputTelemetryBuffer.size;
+//    memcpy(p_buf, outputTelemetryBuffer.data, len);
+//    outputTelemetryBuffer.reset();
+//    p_buf += len;
+//  } else
+  int8_t sel = selectCrossfireTask(
+      mavlinkTelemetryBuffer.destination == endpoint && mavlinkTelemetryBuffer.outputFifo.size() > 0,
+      outputTelemetryBuffer.destination == endpoint,
+      true // doing that is always desired
+  );
+
+  if (sel == 0) {
+#if MTX_USE_MB_ENVELOPE == 0
+    p_buf += XXcreateCrossfireMavlinkEnvelopeFrame(p_buf);
+#else
+    p_buf += createCrossfireMbEnvelopeFrame(p_buf);
+#endif
+  } else
+  if (sel == 1) {
     auto len = outputTelemetryBuffer.size;
     memcpy(p_buf, outputTelemetryBuffer.data, len);
     outputTelemetryBuffer.reset();
     p_buf += len;
   } else
+//OWEND=========
 #endif
   {
     //

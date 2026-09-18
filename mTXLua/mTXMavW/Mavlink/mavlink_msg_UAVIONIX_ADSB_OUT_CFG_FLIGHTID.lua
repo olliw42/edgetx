@@ -1,0 +1,7 @@
+local UAVIONIX_ADSB_OUT_CFG_FLIGHTID = {}
+UAVIONIX_ADSB_OUT_CFG_FLIGHTID.id = 10005
+UAVIONIX_ADSB_OUT_CFG_FLIGHTID.crc_extra = 103
+UAVIONIX_ADSB_OUT_CFG_FLIGHTID.fields = {
+             { "flight_id", "<c9" },
+             }
+return UAVIONIX_ADSB_OUT_CFG_FLIGHTID

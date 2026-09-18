@@ -55,15 +55,20 @@ void drawSplash()
   lv_obj_set_parent(splashScreen->getLvObj(), lv_layer_top());
 
   etx_solid_bg(splashScreen->getLvObj(), COLOR_BLACK_INDEX);
-
-  auto bg = new StaticImage(splashScreen, {0, 0, LCD_W, LCD_H},
-                            BITMAPS_PATH "/" SPLASH_FILE);
-  bg->show(bg->hasImage());
-
-  if (!bg->hasImage()) {
-    LZ4Bitmap* logo = (LZ4Bitmap*)__bmp_splash_logo;
-    coord_t x = (LANDSCAPE ? LCD_W / 3 : LCD_W / 2) - logo->width / 2;
-    coord_t y = (LANDSCAPE ? LCD_H / 2 : LCD_H * 2 / 5) - logo->height / 2;
+//OW============
+//  auto bg = new StaticImage(splashScreen, {0, 0, LCD_W, LCD_H},
+//                            BITMAPS_PATH "/" SPLASH_FILE);
+//  bg->show(bg->hasImage());
+//
+//  if (!bg->hasImage()) {
+//    LZ4Bitmap* logo = (LZ4Bitmap*)__bmp_splash_logo;
+//    coord_t x = (LANDSCAPE ? LCD_W / 3 : LCD_W / 2) - logo->width / 2;
+//    coord_t y = (LANDSCAPE ? LCD_H / 2 : LCD_H * 2 / 5) - logo->height / 2;
+    {
+      LZ4Bitmap* logo = (LZ4Bitmap*)__bmp_splash_logo;
+      coord_t x = (LANDSCAPE ? LCD_W / 2 : LCD_W / 2) - logo->width / 2;
+      coord_t y = (LANDSCAPE ? LCD_H / 2 - 25 : LCD_H * 2 / 5) - logo->height / 2;
+//OWEND=========
     new StaticLZ4Image(splashScreen, x, y, logo);
 
     coord_t w = LAYOUT_SCALE(200);

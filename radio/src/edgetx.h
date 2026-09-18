@@ -462,6 +462,9 @@ uint8_t getFuncSortIdx(uint8_t func);
 extern Functions cfn_sorted[];
 
 #include "telemetry/telemetry.h"
+//OW============
+#include "telemetry/mtx.h"
+//OWEND=========
 #include "crc.h"
 
 #define PLAY_REPEAT(x)            (x)                 /* Range 0 to 15 */

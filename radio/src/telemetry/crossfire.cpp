@@ -414,6 +414,20 @@ void processCrossfireTelemetryFrame(uint8_t module, uint8_t* rxBuffer,
       }
       break;
 
+//OW============
+#if MTX_USE_MB_ENVELOPE == 0
+    case 0xAA: // MAVLINK_ENVELOPE
+      XXprocessCrossfireMavlinkEnvelopeFrame(rxBuffer, rxBufferCount);
+      break;
+#else
+    case 0x82: // MB ENVELOPE
+      if (rxBuffer[3] == 0x66) {
+        processCrossfireMbEnvelopeFrame(rxBuffer, rxBufferCount);
+        break;
+      } // fall through if not 0x82 0x66, important so that pushTelemetryDataToQueues() is called
+#endif
+//OWEND========
+
 #if defined(LUA)
     default:
       if (id == DEVICE_INFO_ID && rxBuffer[4]== MODULE_ADDRESS) {

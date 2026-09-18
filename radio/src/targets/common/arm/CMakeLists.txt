@@ -255,6 +255,7 @@ if(CROSSFIRE)
   set(SRC
     ${SRC}
     telemetry/crossfire.cpp
+    telemetry/mtx.cpp # //OW==========
     )
 endif()
 
