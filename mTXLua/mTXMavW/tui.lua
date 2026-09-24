@@ -33,18 +33,18 @@ local scaleX = 1
 local scaleY = 1
 local txtDY  = 0
 
-ui.DFLT   = 0
-ui.SML    = SMLSIZE
-ui.MID    = MIDSIZE
-ui.DBL    = DBLSIZE
-ui.XXL    = DBLSIZE
+ui.DFLT   = 0       -- 8 px
+ui.SML    = SMLSIZE -- 6 px
+ui.MID    = MIDSIZE -- 12 px
+ui.DBL    = DBLSIZE -- 16 px
+ui.XXL    = DBLSIZE -- XXLSIZE is 32 px
 
 
 if LCD_W >= 800 and LCD_H >= 480 then
     scaleX = LCD_W / 480
     scaleY = 1.74 --LCD_H / 272
     txtDY  = 5
-    ui.XXL    = XXLSIZE
+    ui.XXL = XXLSIZE
 end
 
 

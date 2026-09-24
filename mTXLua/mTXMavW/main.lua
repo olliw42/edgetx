@@ -10,12 +10,12 @@ local widgetName = "mTX MavTelem Widget"
 
 
 local VERSION = {
-    script = '2026-09-18.00', -- add a '.01' if needed for the day
+    script = '2026-09-24.00', -- add a '.01' if needed for the day
 }
 
 
 local options = {
-  -- No user-configurable options yet.
+    { "Debug", BOOL, 1 },
 }
 
 
@@ -172,7 +172,7 @@ local function doIt()
 end
 
 
-local function drawIt(event)
+local function drawIt(widget, event)
     -- Main Screen
     tmainscreen.DrawBackground()
     tmainscreen.DrawTopBar(mavsdk)
@@ -220,24 +220,26 @@ local function drawIt(event)
     end
 
 
---[[    -- display
-    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
-    local stats = mavlinkStats()
-    lcd.drawText(5, 30, "bytes:", CUSTOM_COLOR)
-    lcd.drawNumber(200, 30, stats.rx_bytes_cnt, CUSTOM_COLOR)
-    lcd.drawText(5, 50, "packets:", CUSTOM_COLOR)
-    lcd.drawNumber(200, 50, stats.rx_packets_cnt, CUSTOM_COLOR)
-    lcd.drawText(5, 70, "packets missed:", CUSTOM_COLOR)
-    lcd.drawNumber(200, 70, stats.packets_missed, CUSTOM_COLOR)
-    lcd.drawText(5, 90, "frame err:", CUSTOM_COLOR)
-    lcd.drawNumber(200, 90, stats.frame_len_err, CUSTOM_COLOR)
-    lcd.drawText(5, 110, "payload err:", CUSTOM_COLOR)
-    lcd.drawNumber(200, 110, stats.payload_len_err, CUSTOM_COLOR)
-    lcd.drawText(5, 130, "data err:", CUSTOM_COLOR)
-    lcd.drawNumber(200, 130, stats.data_len_err, CUSTOM_COLOR) --]]
-
-    debugDraw(450, 180)
-    
+    -- debug info
+    if widget.options.Debug > 0 then
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+        local stats = mavlinkStats()
+        local x = 360
+        local y = 272 - 6*14
+        ui.drawText(x, y, "bytes:", CUSTOM_COLOR + ui.SML)
+        ui.drawNumber(x + 75, y, stats.rx_bytes_cnt, CUSTOM_COLOR + ui.SML)
+        ui.drawText(x, y + 1*14, "packets:", CUSTOM_COLOR + ui.SML)
+        ui.drawNumber(x + 75, y + 1*14, stats.rx_packets_cnt, CUSTOM_COLOR + ui.SML)
+        ui.drawText(x, y + 2*14, "packets missed:", CUSTOM_COLOR + ui.SML)
+        ui.drawNumber(x + 100, y + 2*14, stats.packets_missed, CUSTOM_COLOR + ui.SML)
+        ui.drawText(x, y + 3*14, "frame err:", CUSTOM_COLOR + ui.SML)
+        ui.drawNumber(x + 100, y + 3*14, stats.frame_len_err, CUSTOM_COLOR + ui.SML)
+        ui.drawText(x, y + 4*14, "payload err:", CUSTOM_COLOR + ui.SML)
+        ui.drawNumber(x + 100, y + 4*14, stats.payload_len_err, CUSTOM_COLOR + ui.SML)
+        ui.drawText(x, y + 5*14, "data err:", CUSTOM_COLOR + ui.SML)
+        ui.drawNumber(x + 100, y + 5*14, stats.data_len_err, CUSTOM_COLOR + ui.SML)
+        --debugDraw(450, 180)
+    end    
 end
 
 
@@ -272,8 +274,7 @@ end
 local function refresh(widget, event, touchState)
     background(widget)
     --doIt()    
-    -- lcd.clear() -- done in DrawBackground()
-    drawIt(event)
+    drawIt(widget, event)
 end
 
 
