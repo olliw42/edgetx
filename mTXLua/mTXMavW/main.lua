@@ -273,7 +273,8 @@ end
 
 local function refresh(widget, event, touchState)
     background(widget)
-    --doIt()    
+    --doIt()
+    lcd.resetBacklightTimeout()
     drawIt(widget, event)
 end
 
