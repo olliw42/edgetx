@@ -132,12 +132,12 @@ end
 ----------------------------------------------------------------------
 
 function tmainscreen.drawStatusText(tautopilot, x, y)
-    local statusTextIdx = tautopilot.getStatusText(0)
-    local count = math.min(statusTextIdx, 3)
+    local statusTextIdx, _, statusTextCount = tautopilot.getStatusText(0)
+    local count = math.min(statusTextCount, 3)
     
     if LCD_H == 320 then -- Jumper T15
         y = y + 13
-        count = math.min(statusTextIdx, 5)
+        count = math.min(statusTextCount, 5)
     end  
 
     for i = 1, count do

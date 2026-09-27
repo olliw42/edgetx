@@ -10,7 +10,7 @@ local widgetName = "mTX MavTelem Widget"
 
 
 local VERSION = {
-    script = '2026-09-24.00', -- add a '.01' if needed for the day
+    script = '2026-09-27.00', -- add a '.01' if needed for the day
 }
 
 

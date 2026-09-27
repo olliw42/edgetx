@@ -231,7 +231,7 @@ local statusTextSeverity = {
 
 
 function tautopilot.getStatusText(i)
-    return statusTextIdx, statusText[i]
+    return statusTextIdx, statusText[i], #statusText
 end
 
 
