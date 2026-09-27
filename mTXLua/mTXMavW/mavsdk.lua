@@ -296,6 +296,54 @@ function mavsdk.sendStreamRateRequest(sysid, compid, msgid, interval_us)
 end
 
 
+
+----------------------------------------------------------------------
+-- Status Text
+----------------------------------------------------------------------
+
+local statusText = {}
+local statusTextIdx = 0
+local statusTextTotalIdx = 0
+
+local statusTextSeverity = {
+    [0] = { "EMR", COLOR_RED },
+    [1] = { "ALR", COLOR_RED },
+    [2] = { "CRT", COLOR_RED },
+    [3] = { "ERR", COLOR_RED },
+    [4] = { "WRN", COLOR_YELLOW },
+    [5] = { "NOT", COLOR_YELLOW },
+    [6] = { "INF", COLOR_WHITE },
+    [7] = { "DBG", COLOR_LIGHTGREY },
+}
+
+
+local function updateStatusText(st)
+    local txt = st.text
+    local sev = st.severity
+
+    if txt == nil then return end
+
+    if statusTextIdx > 0 and statusText[statusTextIdx].text == txt then
+        statusText[statusTextIdx].count = statusText[statusTextIdx].count + 1
+        statusText[statusTextIdx].idx = statusTextTotalIdx
+    else
+        statusTextIdx = (statusTextIdx % 12) + 1
+        statusText[statusTextIdx] = {
+            text = txt,
+            severity = sev,
+            count = 1, -- gives the number of repeats
+            idx = statusTextTotalIdx,
+        }
+    end
+    statusTextTotalIdx = statusTextTotalIdx + 1
+end
+
+
+function mavsdk.getStatusText(i)
+    return statusTextIdx, statusText[i], #statusText
+end
+
+
 ----------------------------------------------------------------------
 -- Internal state
 ----------------------------------------------------------------------
@@ -364,55 +412,64 @@ local function handleMessage(msg)
         if payload ~= nil then
             updateVehicleFromHeartbeat(payload)
             mavsdk.Heartbeat = payload
+            mavsdk.Heartbeat.treceived_10ms = getTime()
         end
 
     elseif msg.msgid == SYS_STATUS.id then
         local payload = mavlinkDecode(SYS_STATUS, msg)
         if payload ~= nil then
             mavsdk.SysStatus = payload
+            mavsdk.SysStatus.treceived_10ms = getTime()
         end
 
     elseif msg.msgid == ATTITUDE.id then  -- AP STREAM EXTRA1
         local payload = mavlinkDecode(ATTITUDE, msg)
         if payload ~= nil then
             mavsdk.Attitude = payload
+            mavsdk.Attitude.treceived_10ms = getTime()
         end
 
     elseif msg.msgid == VFR_HUD.id then  -- AP STREAM EXTRA2
         local payload = mavlinkDecode(VFR_HUD, msg)
         if payload ~= nil then
             mavsdk.VfrHud = payload
+            mavsdk.VfrHud.treceived_10ms = getTime()
         end
 
     elseif msg.msgid == STATUSTEXT.id then
         local payload = mavlinkDecode(STATUSTEXT, msg)
         if payload ~= nil then
             mavsdk.StatusText = payload
-            mavsdk.StatusText.updated = true
+            mavsdk.StatusText.treceived_10ms = getTime()
+            updateStatusText(mavsdk.StatusText)
         end
         
     elseif msg.msgid == GPS_RAW_INT.id then  -- AP STREAM EXTENDED_STATUS
         local payload = mavlinkDecode(GPS_RAW_INT, msg)
         if payload ~= nil then
             mavsdk.GpsRawInt = payload
+            mavsdk.GpsRawInt.treceived_10ms = getTime()
         end
         
     elseif msg.msgid == GPS2_RAW.id then  -- AP STREAM EXTENDED_STATUS
         local payload = mavlinkDecode(GPS2_RAW, msg)
         if payload ~= nil then
             mavsdk.Gps2Raw = payload
+            mavsdk.Gps2Raw.treceived_10ms = getTime()
         end
         
     elseif msg.msgid == GLOBAL_POSITION_INT.id then  -- AP STREAM STREAM_POSITION
         local payload = mavlinkDecode(GLOBAL_POSITION_INT, msg)
         if payload ~= nil then
             mavsdk.GlobalPositionInt = payload
+            mavsdk.GlobalPositionInt.treceived_10ms = getTime()
         end
         
     elseif msg.msgid == BATTERY_STATUS.id then  -- AP STREAM EXTRA3
         local payload = mavlinkDecode(BATTERY_STATUS, msg)
         if payload ~= nil then
             mavsdk.BatteryStatus = payload
+            mavsdk.BatteryStatus.treceived_10ms = getTime()
             local voltage = 0
             local cellcount = 0
             local validcellcount = true
@@ -442,6 +499,7 @@ local function handleMessage(msg)
         local payload = mavlinkDecode(EKF_STATUS_REPORT, msg)
         if payload ~= nil then
             mavsdk.EkfStatusReport = payload
+            mavsdk.EkfStatusReport.treceived_10ms = getTime()
         end
         
     elseif msg.msgid == PARAM_VALUE.id then
@@ -532,6 +590,8 @@ end
 
 
 function mavsdk.onDisconnect()
+    statusText = {}
+    statusTextIdx = 0
 end
 
 

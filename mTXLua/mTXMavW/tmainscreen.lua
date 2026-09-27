@@ -20,15 +20,11 @@ function tmainscreen.DrawBackground()
 
     -- Top status bar
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
-    ui.drawFilledRectangle(
-        0, 0, LCD_W, 19,
-        CUSTOM_COLOR)
+    ui.drawFilledRectangle(0, 0, LCD_W, 19, CUSTOM_COLOR)
 
     -- Bottom status area
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
-    ui.drawFilledRectangle(
-        0, 200, LCD_W, LCD_H - 200,
-        CUSTOM_COLOR)
+    ui.drawFilledRectangle(0, 200, LCD_W, LCD_H - 200, CUSTOM_COLOR)
 end
 
 
@@ -131,8 +127,8 @@ end
 -- StatusText
 ----------------------------------------------------------------------
 
-function tmainscreen.drawStatusText(tautopilot, x, y)
-    local statusTextIdx, _, statusTextCount = tautopilot.getStatusText(0)
+function tmainscreen.drawStatusText(mavsdk, x, y)
+    local statusTextIdx, _, statusTextCount = mavsdk.getStatusText(0)
     local count = math.min(statusTextCount, 3)
     
     if LCD_H == 320 then -- Jumper T15
@@ -142,7 +138,7 @@ function tmainscreen.drawStatusText(tautopilot, x, y)
 
     for i = 1, count do
         local idx = (statusTextIdx - count + i - 1) % 12 + 1
-        local _, st = tautopilot.getStatusText(idx)
+        local _, st = mavsdk.getStatusText(idx)
 
         local color = ui.COLOR_WHITE
         if st.severity <= 3 then

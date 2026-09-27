@@ -212,55 +212,6 @@ end
 
 
 ----------------------------------------------------------------------
--- Status Text
-----------------------------------------------------------------------
-
-local statusText = {}
-local statusTextIdx = 0
-
-local statusTextSeverity = {
-    [0] = { "EMR", COLOR_RED },
-    [1] = { "ALR", COLOR_RED },
-    [2] = { "CRT", COLOR_RED },
-    [3] = { "ERR", COLOR_RED },
-    [4] = { "WRN", COLOR_YELLOW },
-    [5] = { "NOT", COLOR_YELLOW },
-    [6] = { "INF", COLOR_WHITE },
-    [7] = { "DBG", COLOR_LIGHTGREY },
-}
-
-
-function tautopilot.getStatusText(i)
-    return statusTextIdx, statusText[i], #statusText
-end
-
-
-function tautopilot.statusTextDo(mavsdk)
-    local st = mavsdk.StatusText
-    if st == nil or not st.updated then
-        return
-    end
-    st.updated = false
-
-    local txt = st.text
-    local sev = st.severity
-
-    if txt == nil then return end
-
-    if statusTextIdx > 0 and statusText[statusTextIdx].text == txt then
-        statusText[statusTextIdx].count = statusText[statusTextIdx].count + 1
-    else
-        statusTextIdx = (statusTextIdx % 12) + 1
-        statusText[statusTextIdx] = {
-            text = txt,
-            severity = sev,
-            count = 1
-        }
-    end
-end
-
-
-----------------------------------------------------------------------
 -- DRAW FUNCTIONS
 ----------------------------------------------------------------------
 
@@ -801,8 +752,6 @@ end
 function tautopilot.onDisconnect()
     lastFlightMode = nil
     lastPositionFix = nil
-    statusText = {}
-    statusTextIdx = 0
 end
 
 

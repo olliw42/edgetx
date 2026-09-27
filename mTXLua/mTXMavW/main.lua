@@ -156,7 +156,6 @@ local function doIt()
     mavsdk.Do() -- mavsdk standard do routine, receives, and handled
     mavlinkDo() -- our handler to send
 
-    tautopilot.statusTextDo(mavsdk)
     tautopilot.soundDo(mavsdk)
     
     if not mavsdk.Vehicle.is_connected and not mavsdk.Vehicle.is_armed then
@@ -219,7 +218,7 @@ local function drawIt(widget, event)
     tautopilot.DrawArmingStatus(mavsdk, 240, 174)
 
     -- status bar / status text follow here
-    tmainscreen.drawStatusText(tautopilot, 5, 230)
+    tmainscreen.drawStatusText(mavsdk, 5, 230)
     
     -- warning box
     if not mavsdk.Vehicle.is_connected then
