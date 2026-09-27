@@ -146,7 +146,9 @@ local function drawIt(widget, event)
     ui.drawFilledRectangle(0, 45, LCD_W - 80, LCD_H - 45, CUSTOM_COLOR)
     drawStatusText(0, 50)
     
+    -- System status
     local x, y
+    local sys = mavsdk.SysStatus
     
     -- Prearm
     local MAV_SYS_STATUS_PREARM_CHECK = 268435456 -- 0x10000000
@@ -155,21 +157,16 @@ local function drawIt(widget, event)
     local dx = 115
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
     ui.drawText(x, y, "Prearm checks:", CUSTOM_COLOR)
-    if mavsdk.SysStatus == nil then
-        ui.drawText(x+dx, y, "not avail.", CUSTOM_COLOR)
-    else
-        local sys = mavsdk.SysStatus
-        if sys.onboard_control_sensors_present & MAV_SYS_STATUS_PREARM_CHECK == 0 then
-            ui.drawText(x+dx, y, "-", CUSTOM_COLOR)
-        elseif sys.onboard_control_sensors_enabled & MAV_SYS_STATUS_PREARM_CHECK == 0 then
-            ui.drawText(x+dx, y, "disabled", CUSTOM_COLOR)
-        elseif sys.onboard_control_sensors_health & MAV_SYS_STATUS_PREARM_CHECK > 0 then
-            lcd.setColor(CUSTOM_COLOR, ui.COLOR_BRIGHTGREEN)
-            ui.drawText(x+dx, y-4, "OK", CUSTOM_COLOR + ui.MID)
-        else    
-            lcd.setColor(CUSTOM_COLOR, ui.COLOR_BRIGHTRED)
-            ui.drawText(x+dx, y-4, "FAIL", CUSTOM_COLOR + ui.MID)    
-        end
+    if sys == nil or sys.onboard_control_sensors_present & MAV_SYS_STATUS_PREARM_CHECK == 0 then
+        ui.drawText(x+dx, y, "---", CUSTOM_COLOR)
+    elseif sys.onboard_control_sensors_enabled & MAV_SYS_STATUS_PREARM_CHECK == 0 then
+        ui.drawText(x+dx, y, "disabled", CUSTOM_COLOR)
+    elseif sys.onboard_control_sensors_health & MAV_SYS_STATUS_PREARM_CHECK > 0 then
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_BRIGHTGREEN)
+        ui.drawText(x+dx, y-4, "OK", CUSTOM_COLOR + ui.MID)
+    else    
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_BRIGHTRED)
+        ui.drawText(x+dx, y-4, "FAIL", CUSTOM_COLOR + ui.MID)    
     end
     
     -- Sensors
@@ -184,11 +181,23 @@ local function drawIt(widget, event)
     
     x = LCD_W - 70
     y = 23
-    drawSensorStatus(x, y+0*45, 0, 19, "gyro", MAV_SYS_STATUS_SENSOR_3D_GYRO, MAV_SYS_STATUS_SENSOR_3D_GYRO2)
-    drawSensorStatus(x, y+1*45, 0, 19, "accel", MAV_SYS_STATUS_SENSOR_3D_ACCEL, MAV_SYS_STATUS_SENSOR_3D_ACCEL2)
-    drawSensorStatus(x, y+2*45, 0, 19, "mag", MAV_SYS_STATUS_SENSOR_3D_MAG, MAV_SYS_STATUS_SENSOR_3D_MAG2)
-    drawSensorStatus(x, y+3*45, 0, 19, "gps", MAV_SYS_STATUS_SENSOR_GPS, 0)
-    drawSensorStatus(x, y+4*45, 0, 19, "AHRS", MAV_SYS_STATUS_AHRS, 0)
+    drawSensorStatus(x, y+0*43, 0, 19, "gyro", MAV_SYS_STATUS_SENSOR_3D_GYRO, MAV_SYS_STATUS_SENSOR_3D_GYRO2)
+    drawSensorStatus(x, y+1*43, 0, 19, "accel", MAV_SYS_STATUS_SENSOR_3D_ACCEL, MAV_SYS_STATUS_SENSOR_3D_ACCEL2)
+    drawSensorStatus(x, y+2*43, 0, 19, "mag", MAV_SYS_STATUS_SENSOR_3D_MAG, MAV_SYS_STATUS_SENSOR_3D_MAG2)
+    drawSensorStatus(x, y+3*43, 0, 19, "gps", MAV_SYS_STATUS_SENSOR_GPS, 0)
+    drawSensorStatus(x, y+4*43, 0, 19, "AHRS", MAV_SYS_STATUS_AHRS, 0)
+    
+    -- CPU load
+    x = LCD_W - 70
+    y = 23 + 5*43
+    lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
+    ui.drawText(x, y, "cpu load", CUSTOM_COLOR)
+    if sys == nil then
+        ui.drawText(x, y+19, "---", CUSTOM_COLOR)
+    else
+        ui.drawText(x, y+19, (sys.load / 10) .."%", CUSTOM_COLOR)
+    end
+    
 end
 
 
