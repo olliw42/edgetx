@@ -49,7 +49,7 @@ function tmainscreen.DrawTopBar(mavsdk)
     local y = -1
 
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
-    ui.drawText(45, y, getVehicleClassStr(mavsdk)..":"..model.getInfo().name, CUSTOM_COLOR + ui.DFLT)
+    ui.drawText(45, y, getVehicleClassStr(mavsdk)..": "..model.getInfo().name, CUSTOM_COLOR + ui.DFLT)
 
     local rsField = getFieldInfo("1RSS")
     local tqlyField = getFieldInfo("TQly")

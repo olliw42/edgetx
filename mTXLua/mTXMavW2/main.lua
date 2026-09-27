@@ -56,7 +56,7 @@ local function drawStatusText(x, y)
     local statusTextIdx, _, statusTextCount = mavsdk.getStatusText(0)
     local count = statusTextCount
 
-    local Dy = 19
+    local Dy = 18
     if LCD_H == 320 then Dy = 20 end -- Jumper T15
 
     for i = 1, count do
@@ -101,6 +101,7 @@ local function drawSensorStatus(x, y, dx, dy, name, flag, flag2)
     if sys == nil or sys.onboard_control_sensors_present & flag == 0 then
         ui.drawText(x+dx, y+dy, "---", CUSTOM_COLOR)
     elseif sys.onboard_control_sensors_enabled & flag == 0 then
+        lcd.setColor(CUSTOM_COLOR, ui.COLOR_YELLOW)
         ui.drawText(x+dx, y+dy, "dis.", CUSTOM_COLOR)
     elseif sys.onboard_control_sensors_health & flag > 0 then
         lcd.setColor(CUSTOM_COLOR, ui.COLOR_BRIGHTGREEN)
@@ -110,7 +111,9 @@ local function drawSensorStatus(x, y, dx, dy, name, flag, flag2)
         ui.drawText(x+dx, y+dy, "err", CUSTOM_COLOR)    
     end
     
-    if sys == nil or flag == 0 or sys.onboard_control_sensors_present & flag2 == 0 then return end -- no second instance
+    if sys == nil or flag == 0 or sys.onboard_control_sensors_present & flag2 == 0 then -- no second instance
+        return 
+    end
     
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
     if sys.onboard_control_sensors_enabled & flag2 == 0 then
@@ -129,22 +132,19 @@ end
 ----------------------------------------------------------------------
 
 local function drawIt(widget, event)
-    lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK) --ui.COLOR_BACKGROUND)
-    lcd.clear(CUSTOM_COLOR)
-    
     -- Main background
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_BACKGROUND)
     lcd.clear(CUSTOM_COLOR)
     
     -- Top status bar
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
-    ui.drawFilledRectangle(0, 0, LCD_W, 19, CUSTOM_COLOR)
+    ui.drawFilledRectangle(0, 0, ui.LCD_W, 19, CUSTOM_COLOR)
     tmainscreen.DrawTopBar(mavsdk)
     
     -- Status text area
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
-    ui.drawFilledRectangle(0, 45, LCD_W - 80, LCD_H - 45, CUSTOM_COLOR)
-    drawStatusText(0, 50)
+    ui.drawFilledRectangle(0, 45, ui.LCD_W - 80, 320, CUSTOM_COLOR) -- make it heigh enough
+    drawStatusText(0, 48)
     
     -- System status
     local x, y
@@ -179,23 +179,23 @@ local function drawIt(widget, event)
     local MAV_SYS_STATUS_SENSOR_3D_MAG2 = 524288 --	0x80000 2nd 3D magnetometer    
     local	MAV_SYS_STATUS_AHRS = 2097152 -- 0x200000 AHRS subsystem health
     
-    x = LCD_W - 70
+    x = ui.LCD_W - 70
     y = 23
-    drawSensorStatus(x, y+0*43, 0, 19, "gyro", MAV_SYS_STATUS_SENSOR_3D_GYRO, MAV_SYS_STATUS_SENSOR_3D_GYRO2)
-    drawSensorStatus(x, y+1*43, 0, 19, "accel", MAV_SYS_STATUS_SENSOR_3D_ACCEL, MAV_SYS_STATUS_SENSOR_3D_ACCEL2)
-    drawSensorStatus(x, y+2*43, 0, 19, "mag", MAV_SYS_STATUS_SENSOR_3D_MAG, MAV_SYS_STATUS_SENSOR_3D_MAG2)
-    drawSensorStatus(x, y+3*43, 0, 19, "gps", MAV_SYS_STATUS_SENSOR_GPS, 0)
-    drawSensorStatus(x, y+4*43, 0, 19, "AHRS", MAV_SYS_STATUS_AHRS, 0)
+    drawSensorStatus(x, y+0*41, 0, 18, "gyro", MAV_SYS_STATUS_SENSOR_3D_GYRO, MAV_SYS_STATUS_SENSOR_3D_GYRO2)
+    drawSensorStatus(x, y+1*41, 0, 18, "accel", MAV_SYS_STATUS_SENSOR_3D_ACCEL, MAV_SYS_STATUS_SENSOR_3D_ACCEL2)
+    drawSensorStatus(x, y+2*41, 0, 18, "mag", MAV_SYS_STATUS_SENSOR_3D_MAG, MAV_SYS_STATUS_SENSOR_3D_MAG2)
+    drawSensorStatus(x, y+3*41, 0, 18, "gps", MAV_SYS_STATUS_SENSOR_GPS, 0)
+    drawSensorStatus(x, y+4*41, 0, 18, "AHRS", MAV_SYS_STATUS_AHRS, 0)
     
     -- CPU load
-    x = LCD_W - 70
-    y = 23 + 5*43
+    x = ui.LCD_W - 70
+    y = 23 + 5*41
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
     ui.drawText(x, y, "cpu load", CUSTOM_COLOR)
     if sys == nil then
-        ui.drawText(x, y+19, "---", CUSTOM_COLOR)
+        ui.drawText(x, y+18, "---", CUSTOM_COLOR)
     else
-        ui.drawText(x, y+19, (sys.load / 10) .."%", CUSTOM_COLOR)
+        ui.drawText(x, y+18, (sys.load / 10) .."%", CUSTOM_COLOR)
     end
     
 end

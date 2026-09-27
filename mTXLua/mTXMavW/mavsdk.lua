@@ -296,7 +296,6 @@ function mavsdk.sendStreamRateRequest(sysid, compid, msgid, interval_us)
 end
 
 
-
 ----------------------------------------------------------------------
 -- Status Text
 ----------------------------------------------------------------------

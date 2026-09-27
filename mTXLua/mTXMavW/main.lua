@@ -72,15 +72,15 @@ mTXMavWBackend = { -- publish globally for other instances to use
 ----------------------------------------------------------------------
 
 local my = {
-    SysId = 254, --2 --254
-    CompId = 190, --154, -- 190 -- MAV_COMP_ID_MISSIONPLANNER
-    Type = 6, --26, --6 -- MAV_TYPE_GCS
+    SysId = 254,
+    CompId = 190, -- 190 = MAV_COMP_ID_MISSIONPLANNER
+    Type = 6, -- 6 = MAV_TYPE_GCS
 }
 
 local tlast_1Hz = 0
 local tfirst_connect_10ms = 0 -- 0 indicates has not yet ever connected
 local send_banner = false
-
+local request_stream_rates = false
 
 
 --[[ a message handler callback would be used so:
@@ -122,6 +122,12 @@ local function mavlinkDo()
         }) --]]
     end
     
+    if request_stream_rates and tnow_10ms - tfirst_connect_10ms > 200 then
+        request_stream_rates = false
+        -- note: AP only accepts this from it's MAV_GCS_SYSID, which per default is 255 ...
+        mavsdk.sendStreamRateRequest(255, my.CompId, mavsdk.ATTITUDE.id, 100000) -- 10 Hz
+        mavsdk.sendStreamRateRequest(255, my.CompId, mavsdk.GLOBAL_POSITION_INT.id, 200000) -- 5 Hz
+    end    
     if send_banner and tnow_10ms - tfirst_connect_10ms > 300 then
         send_banner = false
         mavlinkSendCmdLong(42428, nil) -- MAV_CMD_DO_SEND_BANNER
@@ -161,15 +167,16 @@ local function doIt()
     if not mavsdk.Vehicle.is_connected and not mavsdk.Vehicle.is_armed then
         tfirst_connect_10ms = 0
         send_banner = false
+        request_stream_rates = true
     end  
     
     if mavsdk.Vehicle.connected_has_changed then 
         if mavsdk.Vehicle.is_connected then -- just has connected
             tautopilot.onConnect()
-            -- mavsdk.sendStreamRateRequest(mySysid, myCompid, mavsdk.ATTITUDE.id, 200000)
             if tfirst_connect_10ms == 0 and mavsdk.Vehicle.sysid > 0 then -- do on first connection
                 tfirst_connect_10ms = getTime()
                 send_banner = true
+                request_stream_rates = true
             end
         else
             tautopilot.onDisconnect()
@@ -224,7 +231,6 @@ local function drawIt(widget, event)
     if not mavsdk.Vehicle.is_connected then
         drawDisconnected()
     end
-
 
     -- debug info
     if widget.options.Debug > 0 then
