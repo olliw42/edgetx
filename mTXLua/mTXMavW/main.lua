@@ -59,6 +59,13 @@ local mavsdk = loadLib("mavsdk.lua")
 local tautopilot = loadLib("tautopilot.lua")
 local tmainscreen = loadLib("tmainscreen.lua")
 
+mTXMavWBackend = { -- publish globally for other instances to use
+    ui = ui,
+    mavsdk = mavsdk,
+    tautopilot = tautopilot,
+    tmainscreen = tmainscreen,
+}
+
 
 ----------------------------------------------------------------------
 -- MAVLink Receive and Send Functions
