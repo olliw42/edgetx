@@ -30,6 +30,7 @@ local mavsdk = {}
 ----------------------------------------------------------------------
 -- MAVLink message definitions
 ----------------------------------------------------------------------
+-- user should adapt as needed
 
 local HEARTBEAT = loadMavlinkMessageModule("HEARTBEAT")
 local SYS_STATUS = loadMavlinkMessageModule("SYS_STATUS")

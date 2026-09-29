@@ -4,9 +4,9 @@ local widgetName = "mTX MavTelem Widget Status Page"
 -- GPL3
 -- https://www.gnu.org/licenses/gpl-3.0.de.html
 ----------------------------------------------------------------------
--- mTX Lua Widget script, Status Pane
+-- mTX Lua Widget script, Status Page
 ----------------------------------------------------------------------
--- copy script to SCRIPTS\WIDGETS\mTXMavW folder on EdgeTx SD card
+-- copy script to SCRIPTS\WIDGETS\mTXMavW2 folder on EdgeTx SD card
 
 
 local VERSION = {
