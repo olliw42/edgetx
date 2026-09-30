@@ -159,7 +159,7 @@ static void setupPulsesCrossfire(uint8_t module, uint8_t*& p_buf,
 //    p_buf += len;
 //  } else
   int8_t sel = selectCrossfireTask(
-      mavlinkTelemetryBuffer.destination == endpoint && mavlinkTelemetryBuffer.outputFifo.size() > 0,
+      mavlinkTelemetryBuffer.destination == endpoint && mavlinkTelemetryBuffer.outputFifoSize() > 0,
       outputTelemetryBuffer.destination == endpoint,
       true // doing that is always desired
   );

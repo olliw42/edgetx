@@ -19,7 +19,7 @@ local tautopilot = {}
 
 
 ----------------------------------------------------------------------
--- ArduPilot Flight Modes 
+-- ArduPilot Flight Modes
 ----------------------------------------------------------------------
 
 local apCopterFlightMode = {
@@ -30,7 +30,7 @@ local apCopterFlightMode = {
     Land = 9,
     PosHold = 16,
     Follow = 23,
-}    
+}
 
 
 local apRoverFlightModes = {}
@@ -104,22 +104,22 @@ apCopterFlightModes[28] = { "Turtle",       "fmchanged" }
 
 
 function tautopilot.getFlightModeStr(mavsdk)
-    if mavsdk.Heartbeat == nil then return "unknown" end 
+    if mavsdk.Heartbeat == nil then return "unknown" end
     local fm = mavsdk.Heartbeat.custom_mode
     local vc = mavsdk.Vehicle.class
-    
+
     local fmstr = nil
     if vc == mavsdk.VEHICLECLASS_COPTER then
         fmstr = apCopterFlightModes[fm][1]
-    elseif vc == mavsdk.VEHICLECLASS_PLANE then    
+    elseif vc == mavsdk.VEHICLECLASS_PLANE then
         fmstr = apPlaneFlightModes[fm][1]
-    elseif vc == mavsdk.VEHICLECLASS_ROVER then    
+    elseif vc == mavsdk.VEHICLECLASS_ROVER then
         fmstr = apRoverFlightModes[fm][1]
-    end    
+    end
     if fmstr == nil then fmstr = "unknown" end
-    
+
     return fmstr
-end    
+end
 
 
 local function getFlightModeSound(mavsdk)
@@ -165,20 +165,20 @@ end
 
 function tautopilot.soundDo(mavsdk)
     -- handle connected state
-    if mavsdk.Vehicle.connected_has_changed then 
+    if mavsdk.Vehicle.connected_has_changed then
         if mavsdk.Vehicle.is_connected then
             playSound("telok")
         else
             playSound("tellost")
         end
     end
-    
+
     if not mavsdk.Vehicle.is_connected then -- don't do any other if not connected
         return
-    end    
-    
+    end
+
     -- handle arm state
-    if mavsdk.Vehicle.arm_has_changed then 
+    if mavsdk.Vehicle.arm_has_changed then
         if mavsdk.Vehicle.is_armed then
             playSound("armed")
         else
@@ -191,19 +191,19 @@ function tautopilot.soundDo(mavsdk)
         local fm = mavsdk.Heartbeat.custom_mode
         if fm ~= lastFlightMode then -- change detected
             lastFlightMode = fm
-    
+
             local sound = getFlightModeSound(mavsdk)
             if sound ~= nil then
                 playSound(sound)
             end
-        end    
+        end
     end
-    
+
     -- handle pos fix
-    if mavsdk.positionOk() then    
+    if mavsdk.positionOk() then
         if not lastPositionFix then
             playSound("posfix")
-        end    
+        end
         lastPositionFix = true
     else
         lastPositionFix = false
@@ -318,7 +318,7 @@ end
 local function drawHudCompassRibbon(mavsdk, x, y)
     local heading = 0
     if mavsdk.VfrHud ~= nil then
-        heading = mavsdk.VfrHud.heading    
+        heading = mavsdk.VfrHud.heading
     end
 
     local minX = x - 110
@@ -405,7 +405,7 @@ local function drawHudVerticalSpeed(mavsdk, x, y)
     if mavsdk.VfrHud ~= nil then
         verticalSpeed = mavsdk.VfrHud.climb
     end
-    
+
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_BLACK)
     ui.drawFilledRectangle(x - 30, y, 60, 20, CUSTOM_COLOR + SOLID)
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
@@ -470,7 +470,7 @@ local function calcHomeAngle(mavsdk)
     if homeAngle < 0 then
         homeAngle = homeAngle + 360
     end
-    
+
     return homeAngle
 end
 
@@ -489,7 +489,7 @@ end
 function tautopilot.drawHomeIcon(mavsdk, x, y, h)
     updateHomePosition(mavsdk)
     local homeAngle = calcHomeAngle(mavsdk)
-  
+
     local yaw = 0
     if mavsdk.Attitude ~= nil then
         yaw = math.deg(mavsdk.Attitude.yaw)

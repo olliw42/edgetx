@@ -15,9 +15,33 @@
 MavlinkTelemetryBuffer mavlinkTelemetryBuffer;
 
 
+bool MavlinkTelemetryBuffer::Init(uint32_t rx_fifo_size, uint32_t tx_fifo_size)
+{
+    if (inputFifoPtr || outputFifoPtr) return false; // allowed to only be called once
+
+
+    // sanitize, sizes must be 2^N
+    if (rx_fifo_size == 0 || (rx_fifo_size & (rx_fifo_size - 1)) != 0) {
+        return false;
+    }
+    if (tx_fifo_size == 0 || (tx_fifo_size & (tx_fifo_size - 1)) != 0) {
+        return false;
+    }
+
+    // allocate
+    inputFifoPtr = new DynamicFifo<uint8_t>(rx_fifo_size);
+    outputFifoPtr = new DynamicFifo<uint8_t>(tx_fifo_size);
+
+    if (!inputFifoPtr || !outputFifoPtr) return false;
+
+    return true;
+}
+
 
 bool processCrossfireMavlinkEnvelopeFrame(uint8_t* rxBuffer, uint8_t rxBufferCount)
 {
+    if (!mavlinkTelemetryBuffer.inputFifoPtr) return false;
+
     // rxBuffer[0]: address = 0xEA (that's what mLRS is using)
     // rxBuffer[1]: len -> uint8_t crsfPayloadLen
     // rxBuffer[2]: frame id -> uint8_t id = 0xAA
@@ -31,11 +55,11 @@ bool processCrossfireMavlinkEnvelopeFrame(uint8_t* rxBuffer, uint8_t rxBufferCou
     }
     if (rxBuffer[4] + 2 + 2 != rxBuffer[1]) { // check if crsfPayloadLen matches data_size
         mavlinkTelemetryBuffer.rx_payload_len_error++;
-        return true;
+        return false; //???? was true;
     }
     if (rxBuffer[4] > 58) { // check data_size
         mavlinkTelemetryBuffer.rx_data_len_error++;
-        return true;
+        return false; //???? was true;
     }
 
     uint8_t seq = rxBuffer[3] >> 4; // check sequence
@@ -51,7 +75,7 @@ bool processCrossfireMavlinkEnvelopeFrame(uint8_t* rxBuffer, uint8_t rxBufferCou
 
     mavlinkTelemetryBuffer.rx_packets_cnt++;
     for (uint16_t i = 0; i < rxBuffer[4]; i++) {
-        mavlinkTelemetryBuffer.inputFifo.push(rxBuffer[5 + i]);
+        mavlinkTelemetryBuffer.inputFifoPtr->push(rxBuffer[5 + i]);
         mavlinkTelemetryBuffer.rx_bytes_cnt++;
     }
 
@@ -59,9 +83,10 @@ bool processCrossfireMavlinkEnvelopeFrame(uint8_t* rxBuffer, uint8_t rxBufferCou
 }
 
 
-
 bool processCrossfireMbEnvelopeFrame(uint8_t* rxBuffer, uint8_t rxBufferCount)
 {
+    if (!mavlinkTelemetryBuffer.inputFifoPtr) return false;
+
     // rxBuffer[0]: address = 0xEA (that's what mLRS is using)
     // rxBuffer[1]: len -> uint8_t crsfPayloadLen
     // rxBuffer[2]: frame id -> uint8_t id = 0x82
@@ -96,7 +121,7 @@ bool processCrossfireMbEnvelopeFrame(uint8_t* rxBuffer, uint8_t rxBufferCount)
 
     mavlinkTelemetryBuffer.rx_packets_cnt++;
     for (uint16_t i = 0; i < rxBuffer[5]; i++) {
-        mavlinkTelemetryBuffer.inputFifo.push(rxBuffer[6 + i]);
+        mavlinkTelemetryBuffer.inputFifoPtr->push(rxBuffer[6 + i]);
         mavlinkTelemetryBuffer.rx_bytes_cnt++;
     }
 
@@ -106,7 +131,9 @@ bool processCrossfireMbEnvelopeFrame(uint8_t* rxBuffer, uint8_t rxBufferCount)
 
 uint8_t createCrossfireMavlinkEnvelopeFrame(uint8_t* frame)
 {
-    int len = mavlinkTelemetryBuffer.outputFifo.size();
+    if (!mavlinkTelemetryBuffer.outputFifoPtr) return 0;
+
+    int len = mavlinkTelemetryBuffer.outputFifoPtr->size();
     if (len > 30) len = 30; // MAVLink envelope can only hold 58 bytes max, EdgeTx crashes with 58, 30 is ok
 
     uint8_t* buf = frame;
@@ -121,7 +148,7 @@ uint8_t createCrossfireMavlinkEnvelopeFrame(uint8_t* frame)
 
     uint8_t data = 0;
     for (int i = 0; i < len; i++) {
-        mavlinkTelemetryBuffer.outputFifo.pop(data);
+        mavlinkTelemetryBuffer.outputFifoPtr->pop(data);
         *buf++ = data;
     }
 
@@ -132,7 +159,9 @@ uint8_t createCrossfireMavlinkEnvelopeFrame(uint8_t* frame)
 
 uint8_t createCrossfireMbEnvelopeFrame(uint8_t* frame)
 {
-    int len = mavlinkTelemetryBuffer.outputFifo.size();
+    if (!mavlinkTelemetryBuffer.outputFifoPtr) return 0;
+
+    int len = mavlinkTelemetryBuffer.outputFifoPtr->size();
     if (len > 30) len = 30; // MAVLink envelope can only hold 58 bytes max, EdgeTx crashes with 58, 30 is ok
 
     uint8_t* buf = frame;
@@ -148,7 +177,7 @@ uint8_t createCrossfireMbEnvelopeFrame(uint8_t* frame)
 
     uint8_t data = 0;
     for (int i = 0; i < len; i++) {
-        mavlinkTelemetryBuffer.outputFifo.pop(data);
+        mavlinkTelemetryBuffer.outputFifoPtr->pop(data);
         *buf++ = data;
     }
 

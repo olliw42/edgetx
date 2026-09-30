@@ -58,11 +58,11 @@ function tmainscreen.DrawTopBar(mavsdk)
     local rs = nil
     local tqly = nil
     local rqly = nil
-    
+
     if rsField ~= nil then rs = getValue(rsField.id) end
     if tqlyField ~= nil then tqly = getValue(tqlyField.id) end
     if rqlyField ~= nil then rqly = getValue(rqlyField.id) end
-    
+
     local x = 225 -- 235
     if rs ~= nil then
         lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
@@ -130,11 +130,11 @@ end
 function tmainscreen.drawStatusText(mavsdk, x, y)
     local statusTextIdx, _, statusTextCount = mavsdk.getStatusText(0)
     local count = math.min(statusTextCount, 3)
-    
+
     if LCD_H == 320 then -- Jumper T15
         y = y + 13
         count = math.min(statusTextCount, 5)
-    end  
+    end
 
     for i = 1, count do
         local idx = (statusTextIdx - count + i - 1) % 12 + 1
@@ -153,7 +153,7 @@ function tmainscreen.drawStatusText(mavsdk, x, y)
         if st.count > 1 then
             text = string.format("%s (%dx)", text, st.count)
         end
-        
+
         ui.drawText(x, y + (i - 1) * 13, text, CUSTOM_COLOR + ui.SML)
     end
 end

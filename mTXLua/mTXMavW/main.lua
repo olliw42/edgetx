@@ -10,7 +10,7 @@ local widgetName = "mTX MavTelem Widget"
 
 
 local VERSION = {
-    script = '2026-09-27.00', -- add a '.01' if needed for the day
+    script = '2026-09-30.00', -- add a '.01' if needed for the day
 }
 
 
@@ -41,13 +41,16 @@ end
 -- Load Libraries
 ----------------------------------------------------------------------
 
+assert(mavlinkInit(2048, 2048))
+
+
 local ui
 
 local function loadLib(libName)
     local scrpt, err = loadScript("/WIDGETS/mTXMavW/" .. libName)
     if scrpt == nil then
         scrpt, err = loadScript("/SCRIPTS/TOOLS/" .. libName)
-    end  
+    end
     if scrpt == nil then
         error("Cannot load " .. libName .. ": " .. (err or "unknown error"))
     end
@@ -102,11 +105,11 @@ end
 
 local function mavlinkDo()
     local tnow_10ms = getTime()
-    
+
     -- 1 Hz tick
     if tnow_10ms - tlast_1Hz >= 100 then
         tlast_1Hz = tnow_10ms
-        
+
         mavlinkSend(mavsdk.HEARTBEAT, {
             type = my.Type,
             autopilot = 8, -- MAV_AUTOPILOT_INVALID
@@ -115,23 +118,23 @@ local function mavlinkDo()
             system_status = 4, -- MAV_STATE_ACTIVE
             mavlink_version = 3,
         })
-      
+
 --[[        mavlinkSend(mavsdk.STATUSTEXT, {
             severity = 6,
             text = "Hello from mLRS, I'm alive",
         }) --]]
     end
-    
+
     if request_stream_rates and tnow_10ms - tfirst_connect_10ms > 200 then
         request_stream_rates = false
         -- note: AP only accepts this from it's MAV_GCS_SYSID, which per default is 255 ...
         mavsdk.sendStreamRateRequest(255, my.CompId, mavsdk.ATTITUDE.id, 100000) -- 10 Hz
         mavsdk.sendStreamRateRequest(255, my.CompId, mavsdk.GLOBAL_POSITION_INT.id, 200000) -- 5 Hz
-    end    
+    end
     if send_banner and tnow_10ms - tfirst_connect_10ms > 300 then
         send_banner = false
         mavlinkSendCmdLong(42428, nil) -- MAV_CMD_DO_SEND_BANNER
-    end    
+    end
 end
 
 
@@ -144,7 +147,7 @@ local function drawDisconnected()
     local h = 90
     local x = (480 - w) / 2
     local y = (220 - h) / 2
-    
+
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_WHITE)
     ui.drawFilledRectangle(x - 2, y - 2, w + 4, h + 4, CUSTOM_COLOR)
     lcd.setColor(CUSTOM_COLOR, ui.COLOR_RED)
@@ -163,14 +166,14 @@ local function doIt()
     mavlinkDo() -- our handler to send
 
     tautopilot.soundDo(mavsdk)
-    
+
     if not mavsdk.Vehicle.is_connected and not mavsdk.Vehicle.is_armed then
         tfirst_connect_10ms = 0
         send_banner = false
         request_stream_rates = true
-    end  
-    
-    if mavsdk.Vehicle.connected_has_changed then 
+    end
+
+    if mavsdk.Vehicle.connected_has_changed then
         if mavsdk.Vehicle.is_connected then -- just has connected
             tautopilot.onConnect()
             if tfirst_connect_10ms == 0 and mavsdk.Vehicle.sysid > 0 then -- do on first connection
@@ -226,7 +229,7 @@ local function drawIt(widget, event)
 
     -- status bar / status text follow here
     tmainscreen.drawStatusText(mavsdk, 5, 230)
-    
+
     -- warning box
     if not mavsdk.Vehicle.is_connected then
         drawDisconnected()
@@ -251,7 +254,7 @@ local function drawIt(widget, event)
         ui.drawText(x, y + 5*14, "data err:", CUSTOM_COLOR + ui.SML)
         ui.drawNumber(x + 100, y + 5*14, stats.data_len_err, CUSTOM_COLOR + ui.SML)
         --debugDraw(450, 180)
-    end    
+    end
 end
 
 
@@ -263,7 +266,7 @@ local function create(zone, options)
     if model.getModule(0).Type ~= 5 and model.getModule(1).Type ~= 5 then
         error("CRSF not enabled!")
     end
-  
+
     local widget = { zone = zone, options = options }
 
     tlast_1Hz = getTime()

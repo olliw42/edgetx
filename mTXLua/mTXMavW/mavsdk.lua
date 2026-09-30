@@ -16,7 +16,7 @@ local function loadMavlinkMessageModule(filename)
     local scrpt, err = loadScript(mavsdkPath1 .. "mavlink_msg_" .. filename .. ".lua")
     if scrpt == nil then
         scrpt, err = loadScript(mavsdkPath2 .. "mavlink_msg_" .. filename .. ".lua")
-    end    
+    end
     if scrpt == nil then
         error("Cannot load " .. filename .. ": " .. (err or "unknown error"))
     end
@@ -126,7 +126,7 @@ local MAV_MODE_FLAG_SAFETY_ARMED = 128
 local vehicle = {
     was_connected = false,
     was_armed = false,
-}    
+}
 
 mavsdk.Vehicle = {
     sysid = 0,
@@ -148,15 +148,15 @@ local function updateVehicleFromHeartbeat(payload)
     mavsdk.Vehicle.is_armed = ((payload.base_mode & MAV_MODE_FLAG_SAFETY_ARMED) ~= 0)
     mavsdk.Vehicle.is_connected = true
     mavsdk.Vehicle.tlast_10ms = getTime()
-end   
+end
 
 
 local function waitForAutopilot(msg)
     if mavsdk.Vehicle.sysid ~= 0 then return false; end -- found, no need to wait anymore
-  
+
     if msg.msgid == HEARTBEAT.id then
         local payload = mavlinkDecode(HEARTBEAT, msg)
-        if payload == nil then 
+        if payload == nil then
             return true -- still needs to wait
         end
 
@@ -165,40 +165,40 @@ local function waitForAutopilot(msg)
             mavsdk.Vehicle.compid = msg.compid
             mavsdk.Vehicle.autopilot = payload.autopilot
             mavsdk.Vehicle.type = payload.type
-            mavsdk.Vehicle.class = getVehicleClass(payload.type)            
+            mavsdk.Vehicle.class = getVehicleClass(payload.type)
             updateVehicleFromHeartbeat(payload)
             mavsdk.Heartbeat = payload
             return false
         end
     end
-    
+
     return true -- still needs to wait
 end
 
 
 local function updateAutopilotStatus()
     local tnow_10ms = getTime()
-    
+
     if tnow_10ms - mavsdk.Vehicle.tlast_10ms > 300 then
         mavsdk.Vehicle.is_connected = false
     end
-    
+
     if (mavsdk.Vehicle.is_connected and not vehicle.was_connected) or
        (not mavsdk.Vehicle.is_connected and vehicle.was_connected) then
         mavsdk.Vehicle.connected_has_changed = true
     else
         mavsdk.Vehicle.connected_has_changed = false
-    end    
+    end
     vehicle.was_connected = mavsdk.Vehicle.is_connected
-    
+
     if (mavsdk.Vehicle.is_armed and not vehicle.was_armed) or
        (not mavsdk.Vehicle.is_armed and vehicle.was_armed) then
         mavsdk.Vehicle.arm_has_changed = true
     else
         mavsdk.Vehicle.arm_has_changed = false
-    end    
+    end
     vehicle.was_armed = mavsdk.Vehicle.is_armed
-end  
+end
 
 
 ----------------------------------------------------------------------
@@ -221,7 +221,7 @@ end
 
 local function sendParameterRequest(p)
     return mavsdk.sendMessage(
-        p.sysid, p.compid, 
+        p.sysid, p.compid,
         PARAM_REQUEST_READ, {
             target_system = mavsdk.Vehicle.sysid,
             target_component = mavsdk.Vehicle.compid,
@@ -239,14 +239,14 @@ local function updateParameterRequests()
 
             if p.cnt == 0 then
                 sendParameterRequest(p)
-                p.cnt = p.cnt + 1 
+                p.cnt = p.cnt + 1
                 p.trequest_10ms = tnow_10ms
             elseif tnow_10ms - p.trequest_10ms >= PARAM_TIMEOUT_10MS then
                 sendParameterRequest(p)
                 p.cnt = p.cnt + 1
                 p.trequest_10ms = p.trequest_10ms + PARAM_TIMEOUT_10MS
             end
-        end      
+        end
     end
 end
 
@@ -255,8 +255,8 @@ function mavsdk.requestParameter(sysid, compid, name)
     local p = findParameterRequest(name)
     if p ~= nil then
         if p.value ~= nil then return end
-    	  p.cnt = 0
-    	  p.trequest_10ms = 0
+          p.cnt = 0
+          p.trequest_10ms = 0
         return
     end
     table.insert(paramRequests, {
@@ -285,7 +285,7 @@ end
 
 function mavsdk.sendStreamRateRequest(sysid, compid, msgid, interval_us)
     return mavsdk.sendMessage(
-        sysid, compid, 
+        sysid, compid,
         COMMAND_LONG, {
             target_system = mavsdk.Vehicle.sysid,
             target_component = mavsdk.Vehicle.compid,
@@ -363,10 +363,10 @@ local txNextSequence = 0
 function mavsdk.sendMessage(sysid, compid, msg_struct, data)
     local res = mavlinkPush(txNextSequence, sysid, compid, msg_struct, data)
     if res == nil then return false end
-    
+
     txNextSequence = txNextSequence + 1 -- prepare for next
     if txNextSequence >= 256 then txNextSequence = 0 end
-    
+
     return true
 end
 
@@ -376,10 +376,10 @@ function mavsdk.sendCommandLong(sysid, compid, command, params)
         target_system = mavsdk.Vehicle.sysid,
         target_component = mavsdk.Vehicle.compid,
         command = command,
-    }  
+    }
     if params then
         for key, value in pairs(params) do data[key] = value end
-    end    
+    end
     return mavsdk.sendMessage(sysid, compid, COMMAND_LONG, data)
 end
 
@@ -443,28 +443,28 @@ local function handleMessage(msg)
             mavsdk.StatusText.treceived_10ms = getTime()
             updateStatusText(mavsdk.StatusText)
         end
-        
+
     elseif msg.msgid == GPS_RAW_INT.id then  -- AP STREAM EXTENDED_STATUS
         local payload = mavlinkDecode(GPS_RAW_INT, msg)
         if payload ~= nil then
             mavsdk.GpsRawInt = payload
             mavsdk.GpsRawInt.treceived_10ms = getTime()
         end
-        
+
     elseif msg.msgid == GPS2_RAW.id then  -- AP STREAM EXTENDED_STATUS
         local payload = mavlinkDecode(GPS2_RAW, msg)
         if payload ~= nil then
             mavsdk.Gps2Raw = payload
             mavsdk.Gps2Raw.treceived_10ms = getTime()
         end
-        
+
     elseif msg.msgid == GLOBAL_POSITION_INT.id then  -- AP STREAM STREAM_POSITION
         local payload = mavlinkDecode(GLOBAL_POSITION_INT, msg)
         if payload ~= nil then
             mavsdk.GlobalPositionInt = payload
             mavsdk.GlobalPositionInt.treceived_10ms = getTime()
         end
-        
+
     elseif msg.msgid == BATTERY_STATUS.id then  -- AP STREAM EXTRA3
         local payload = mavlinkDecode(BATTERY_STATUS, msg)
         if payload ~= nil then
@@ -494,14 +494,14 @@ local function handleMessage(msg)
             mavsdk.BatteryStatus.voltage = voltage
             mavsdk.BatteryStatus.cellcount = cellcount
         end
-        
+
     elseif msg.msgid == EKF_STATUS_REPORT.id then  -- AP STREAM EXTRA3
         local payload = mavlinkDecode(EKF_STATUS_REPORT, msg)
         if payload ~= nil then
             mavsdk.EkfStatusReport = payload
             mavsdk.EkfStatusReport.treceived_10ms = getTime()
         end
-        
+
     elseif msg.msgid == PARAM_VALUE.id then
         local payload = mavlinkDecode(PARAM_VALUE, msg)
         if payload ~= nil then
@@ -510,7 +510,7 @@ local function handleMessage(msg)
                 p.value = payload
             end
         end
-        
+
     else
         -- callback
         if mavsdk.handleMessageCallback then
@@ -534,10 +534,10 @@ function mavsdk.Do()
         end
         handleMessage(msg)
     end
-    
+
     -- autopilot status handling
-    updateAutopilotStatus()    
-    
+    updateAutopilotStatus()
+
     -- parameter requests
     updateParameterRequests()
 end
@@ -568,9 +568,9 @@ function mavsdk.positionOk()
             -- EKF_VELOCITY_HORIZ = 2
             -- EKF_POS_HORIZ_ABS = 16
             if (ekf.flags & 2) == 0 or (ekf.flags & 16) == 0 then return false end
-        end    
+        end
     end
-    
+
     return true
 end
 
@@ -578,7 +578,7 @@ end
 function mavsdk.gps2Available()
     if mavsdk.Gps2Raw ~= nil then return true end
     return false
-end    
+end
 
 
 ----------------------------------------------------------------------

@@ -191,23 +191,23 @@ static int luaMavlinkDecode(lua_State *L)
 {
 size_t payloadLen = 0;
 
-  luaL_checktype(L, 1, LUA_TTABLE); // msg_struct
-  luaL_checktype(L, 2, LUA_TTABLE); // msg table from mavlinkPop()
+    luaL_checktype(L, 1, LUA_TTABLE); // msg_struct
+    luaL_checktype(L, 2, LUA_TTABLE); // msg table from mavlinkPop()
 
-  // msg.payload
-  lua_getfield(L, 2, "payload");
-  const uint8_t *payload = (const uint8_t *)luaL_checklstring(L, -1, &payloadLen);
-  lua_pop(L, 1);
+    // msg.payload
+    lua_getfield(L, 2, "payload");
+    const uint8_t *payload = (const uint8_t *)luaL_checklstring(L, -1, &payloadLen);
+    lua_pop(L, 1);
 
-  // create return table
-  lua_createtable(L, 0, 8);
-  if (!mavlink_decode_payload(L, payload, payloadLen)) {
-    lua_pop(L, 1); // pop return table
-    lua_pushnil(L);
+    // create return table
+    lua_createtable(L, 0, 8);
+    if (!mavlink_decode_payload(L, payload, payloadLen)) {
+        lua_pop(L, 1); // pop return table
+        lua_pushnil(L);
+        return 1;
+    }
+
     return 1;
-  }
-
-  return 1;
 }
 
 
@@ -220,36 +220,41 @@ uint8_t c = 0;
 static fmav_message_t msg = {};
 static fmav_status_t status = {};
 
-  int available = mavlinkTelemetryBuffer.inputFifo.size();
-  for (int i = 1; i <= available; i++) {
-      mavlinkTelemetryBuffer.inputFifo.pop(c);
+    if (!mavlinkTelemetryBuffer.inputFifoPtr) { // inputFifoFifo not available
+        lua_pushnil(L);
+        return 1;
+    }
 
-      // can return RESULT_NONE, RESULT_HAS_HEADER, RESULT_MSGID_UNKNOWN, RESULT_CRC_ERROR, RESULT_OK
-      int8_t res = fmav_parse_to_msg(&msg, &status, c);
+    int available = mavlinkTelemetryBuffer.inputFifoPtr->size();
+    for (int i = 1; i <= available; i++) {
+        mavlinkTelemetryBuffer.inputFifoPtr->pop(c);
 
-      switch (res) {
-        case FASTMAVLINK_PARSE_RESULT_MSGID_UNKNOWN: res = -1; break;
-        case FASTMAVLINK_PARSE_RESULT_OK: res = 1; break;
-        default: continue;
-      }
+        // can return RESULT_NONE, RESULT_HAS_HEADER, RESULT_MSGID_UNKNOWN, RESULT_CRC_ERROR, RESULT_OK
+        int8_t res = fmav_parse_to_msg(&msg, &status, c);
 
-      lua_createtable(L, 0, 7);
-      lua_pushtableinteger(L, "magic", msg.magic);
-      lua_pushtableinteger(L, "len", msg.len);
-      lua_pushtableinteger(L, "seq", msg.seq);
-      lua_pushtableinteger(L, "sysid", msg.sysid);
-      lua_pushtableinteger(L, "compid", msg.compid);
-      lua_pushtableinteger(L, "msgid", msg.msgid);
+        switch (res) {
+            case FASTMAVLINK_PARSE_RESULT_MSGID_UNKNOWN: res = -1; break;
+            case FASTMAVLINK_PARSE_RESULT_OK: res = 1; break;
+            default: continue;
+        }
 
-      lua_pushlstring(L, (const char*)msg.payload, msg.len);
-      lua_setfield(L, -2, "payload");
+        lua_createtable(L, 0, 7);
+        lua_pushtableinteger(L, "magic", msg.magic);
+        lua_pushtableinteger(L, "len", msg.len);
+        lua_pushtableinteger(L, "seq", msg.seq);
+        lua_pushtableinteger(L, "sysid", msg.sysid);
+        lua_pushtableinteger(L, "compid", msg.compid);
+        lua_pushtableinteger(L, "msgid", msg.msgid);
 
-      lua_pushtableinteger(L, "res", res);
-      return 1;
-  }
+        lua_pushlstring(L, (const char*)msg.payload, msg.len);
+        lua_setfield(L, -2, "payload");
 
-  lua_pushnil(L);
-  return 1;
+        lua_pushtableinteger(L, "res", res);
+        return 1;
+    }
+
+    lua_pushnil(L);
+    return 1;
 }
 
 
@@ -449,19 +454,19 @@ static int luaMavlinkEncode(lua_State *L)
 uint8_t frame[300];
 size_t frameLen = 0;
 
-  luaL_checkinteger(L, 1); // seq
-  luaL_checkinteger(L, 2); // sysid
-  luaL_checkinteger(L, 3); // compid
-  luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
-  luaL_checktype(L, 5, LUA_TTABLE); // data
+    luaL_checkinteger(L, 1); // seq
+    luaL_checkinteger(L, 2); // sysid
+    luaL_checkinteger(L, 3); // compid
+    luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
+    luaL_checktype(L, 5, LUA_TTABLE); // data
 
-  if (!mavlink_encode_frame(L, frame, &frameLen)) {
-    lua_pushnil(L);
+    if (!mavlink_encode_frame(L, frame, &frameLen)) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushlstring(L, (const char *)frame, frameLen);
     return 1;
-  }
-
-  lua_pushlstring(L, (const char *)frame, frameLen);
-  return 1;
 }
 
 
@@ -472,55 +477,60 @@ size_t frameLen = 0;
 // false: not enough space in output FIFO, or incorrect parameter(s)
 static int luaMavlinkPush(lua_State* L)
 {
-  bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
-  bool internal = (moduleState[INTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+    if (!mavlinkTelemetryBuffer.outputFifoPtr) { // outputFifoPtr not available
+        lua_pushnil(L);
+        return 1;
+    }
 
-  if (!internal && !external) { // no module selected
-    lua_pushnil(L);
+    bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+    bool internal = (moduleState[INTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+
+    if (!internal && !external) { // no module selected
+        lua_pushnil(L);
+        return 1;
+    }
+
+    int nargs = lua_gettop(L);
+    if (nargs == 1) { // used as mavlinkPush(msg_frame)
+        luaL_checklstring(L, 1, NULL); // msg_frame
+    }
+    else if (nargs == 5) { // used as mavlinkPush(seq, sysid, compid, msg_struct, data)
+        luaL_checkinteger(L, 1); // seq
+        luaL_checkinteger(L, 2); // sysid
+        luaL_checkinteger(L, 3); // compid
+        luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
+        luaL_checktype(L, 5, LUA_TTABLE); // data
+    }
+    else {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    size_t len;
+    if (nargs == 5) {
+        uint8_t data[300];
+        if (!mavlink_encode_frame(L, data, &len) || !mavlinkTelemetryBuffer.outputFifoPtr->hasSpace(len)) {
+            lua_pushboolean(L, false);
+            return 1;
+        }
+        for (size_t i = 0; i < len; i++) {
+            mavlinkTelemetryBuffer.outputFifoPtr->push(data[i]);
+        }
+    } else {
+        const uint8_t* data = (const uint8_t*)luaL_checklstring(L, 1, &len);
+    if (!mavlinkTelemetryBuffer.outputFifoPtr->hasSpace(len)) {
+        lua_pushboolean(L, false);
+        return 1;
+      }
+      for (size_t i = 0; i < len; i++) {
+          mavlinkTelemetryBuffer.outputFifoPtr->push(data[i]);
+      }
+    }
+
+    mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
+
+    lua_pushboolean(L, true);
     return 1;
-  }
-
-  int nargs = lua_gettop(L);
-  if (nargs == 1) { // used as mavlinkPush(msg_frame)
-    luaL_checklstring(L, 1, NULL); // msg_frame
-  }
-  else if (nargs == 5) { // used as mavlinkPush(seq, sysid, compid, msg_struct, data)
-    luaL_checkinteger(L, 1); // seq
-    luaL_checkinteger(L, 2); // sysid
-    luaL_checkinteger(L, 3); // compid
-    luaL_checktype(L, 4, LUA_TTABLE); // msg_struct
-    luaL_checktype(L, 5, LUA_TTABLE); // data
-  }
-  else {
-    lua_pushboolean(L, false);
-    return 1;
-  }
-
-  size_t len;
-  if (nargs == 5) {
-    uint8_t data[300];
-    if (!mavlink_encode_frame(L, data, &len) || !mavlinkTelemetryBuffer.outputFifo.hasSpace(len)) {
-      lua_pushboolean(L, false);
-      return 1;
-    }
-    for (size_t i = 0; i < len; i++) {
-      mavlinkTelemetryBuffer.outputFifo.push(data[i]);
-    }
-  } else {
-    const uint8_t* data = (const uint8_t*)luaL_checklstring(L, 1, &len);
-    if (!mavlinkTelemetryBuffer.outputFifo.hasSpace(len)) {
-      lua_pushboolean(L, false);
-      return 1;
-    }
-    for (size_t i = 0; i < len; i++) {
-      mavlinkTelemetryBuffer.outputFifo.push(data[i]);
-    }
-  }
-
-  mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
-
-  lua_pushboolean(L, true);
-  return 1;
 }
 
 
@@ -530,33 +540,33 @@ static int luaMavlinkPush(lua_State* L)
 
 static int luaMavlinkStats(lua_State* L)
 {
-  lua_newtable(L);
-  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_cnt);
-  lua_setfield(L, -2, "rx_packets_cnt");
-  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_bytes_cnt);
-  lua_setfield(L, -2, "rx_bytes_cnt");
-  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_frame_len_error);
-  lua_setfield(L, -2, "frame_len_err");
-  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_payload_len_error);
-  lua_setfield(L, -2, "payload_len_err");
-  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_data_len_error);
-  lua_setfield(L, -2, "data_len_err");
-  lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_missed);
-  lua_setfield(L, -2, "packets_missed");
-  return 1;
+    lua_newtable(L);
+    lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_cnt);
+    lua_setfield(L, -2, "rx_packets_cnt");
+    lua_pushinteger(L, mavlinkTelemetryBuffer.rx_bytes_cnt);
+    lua_setfield(L, -2, "rx_bytes_cnt");
+    lua_pushinteger(L, mavlinkTelemetryBuffer.rx_frame_len_error);
+    lua_setfield(L, -2, "frame_len_err");
+    lua_pushinteger(L, mavlinkTelemetryBuffer.rx_payload_len_error);
+    lua_setfield(L, -2, "payload_len_err");
+    lua_pushinteger(L, mavlinkTelemetryBuffer.rx_data_len_error);
+    lua_setfield(L, -2, "data_len_err");
+    lua_pushinteger(L, mavlinkTelemetryBuffer.rx_packets_missed);
+    lua_setfield(L, -2, "packets_missed");
+    return 1;
 }
 
 
 static int luaMavlinkResetStats(lua_State* L)
 {
-  mavlinkTelemetryBuffer.rx_packets_cnt = 0;
-  mavlinkTelemetryBuffer.rx_bytes_cnt = 0;
-  mavlinkTelemetryBuffer.rx_frame_len_error = 0;
-  mavlinkTelemetryBuffer.rx_payload_len_error = 0;
-  mavlinkTelemetryBuffer.rx_data_len_error = 0;
-  mavlinkTelemetryBuffer.rx_packets_missed = 0;
-  mavlinkTelemetryBuffer.inputFifo.clear();
-  return 0;
+    mavlinkTelemetryBuffer.rx_packets_cnt = 0;
+    mavlinkTelemetryBuffer.rx_bytes_cnt = 0;
+    mavlinkTelemetryBuffer.rx_frame_len_error = 0;
+    mavlinkTelemetryBuffer.rx_payload_len_error = 0;
+    mavlinkTelemetryBuffer.rx_data_len_error = 0;
+    mavlinkTelemetryBuffer.rx_packets_missed = 0;
+    if (mavlinkTelemetryBuffer.inputFifoPtr) mavlinkTelemetryBuffer.inputFifoPtr->clear();
+    return 0;
 }
 
 
@@ -568,49 +578,103 @@ static int luaMavlinkPopPacket(lua_State * L)
 {
 uint8_t data = 0;
 
-  int length = mavlinkTelemetryBuffer.inputFifo.size();
-  if (length > 286) length = 286; // don't let it become too large
-  if (length > 0) {
-    lua_newtable(L);
-    for (int i = 1; i <= length; i++) {
-    mavlinkTelemetryBuffer.inputFifo.pop(data);
-      lua_pushinteger(L, i);
-      lua_pushinteger(L, data);
-      lua_settable(L, -3); // lua_pushinteger(L, data); lua_rawseti(L, -2, i); instead ??
+    if (!mavlinkTelemetryBuffer.inputFifoPtr) { // inputFifoFifo not available
+        lua_pushnil(L);
+        return 1;
     }
-    return 1;
-  }
-  return 0;
+
+    int length = mavlinkTelemetryBuffer.inputFifoPtr->size();
+    if (length > 286) length = 286; // don't let it become too large
+    if (length > 0) {
+        lua_newtable(L);
+        for (int i = 1; i <= length; i++) {
+            mavlinkTelemetryBuffer.inputFifoPtr->pop(data);
+            lua_pushinteger(L, i);
+            lua_pushinteger(L, data);
+            lua_settable(L, -3); // lua_pushinteger(L, data); lua_rawseti(L, -2, i); instead ??
+        }
+        return 1;
+    }
+
+    return 0;
 }
 
 
 static int luaMavlinkPushPacket(lua_State* L)
 {
-  bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
-  bool internal = (moduleState[INTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+    if (!mavlinkTelemetryBuffer.outputFifoPtr) { // outputFifoPtr not available
+        lua_pushnil(L);
+        return 1;
+    }
 
-  if (!internal && !external) { // no module selected
-    lua_pushnil(L);
+    bool external = (moduleState[EXTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+    bool internal = (moduleState[INTERNAL_MODULE].protocol == PROTOCOL_CHANNELS_CROSSFIRE);
+
+    if (!internal && !external) { // no module selected
+        lua_pushnil(L);
+        return 1;
+    }
+    if (lua_gettop(L) == 0) { // no parameter
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    luaL_checktype(L, 1, LUA_TTABLE);
+    int length = luaL_len(L, 1);
+    if (!mavlinkTelemetryBuffer.outputFifoPtr->hasSpace(length)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    for (int i = 0; i < length; i++) {
+        lua_rawgeti(L, 1, i + 1);
+        mavlinkTelemetryBuffer.outputFifoPtr->push(luaL_checkinteger(L, -1));
+        // lua_pop(L, 1); // needed or not? advised to use but not necessary ??
+    }
+    mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
+    lua_pushboolean(L, true);
     return 1;
-  }
-  if (lua_gettop(L) == 0) { // no parameter
-    lua_pushboolean(L, false);
+}
+
+
+//============================================================
+//== mavlinkIni(), Initialization
+//============================================================
+
+static int luaMavlinkInit(lua_State* L)
+{
+    int nargs = lua_gettop(L);
+    if (nargs == 3) {
+        luaL_checkinteger(L, 1); // rx buf size
+        luaL_checkinteger(L, 2); // tx buf size
+        luaL_checkinteger(L, 3); // size of rx MAVLink message ID table, <=0 : means all
+    } else
+    if (nargs == 2) {
+        luaL_checkinteger(L, 1); // rx buf size
+        luaL_checkinteger(L, 2); // tx buf size
+    } else {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    int rx_buf_size = lua_tointeger(L, 1);
+    int tx_buf_size = lua_tointeger(L, 2);
+    //todo int rx_id_table_size = (nargs == 3) ? lua_tointeger(L, 3) : -1;
+
+    if (rx_buf_size < 512 || rx_buf_size > 8192) { // min: 512, max: 8192
+        lua_pushboolean(L, false);
+        return 1;
+    }
+    if (tx_buf_size < 512 || tx_buf_size > 8192) { // min: 512, max: 8192
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    if (!mavlinkTelemetryBuffer.Init(rx_buf_size, tx_buf_size)) {
+        lua_pushboolean(L, false);
+        return 1;
+    }
+
+    lua_pushboolean(L, true);
     return 1;
-  }
-  luaL_checktype(L, 1, LUA_TTABLE);
-  int length = luaL_len(L, 1);
-  if (!mavlinkTelemetryBuffer.outputFifo.hasSpace(length)) {
-    lua_pushboolean(L, false);
-    return 1;
-  }
-  for (int i = 0; i < length; i++) {
-    lua_rawgeti(L, 1, i + 1);
-    mavlinkTelemetryBuffer.outputFifo.push(luaL_checkinteger(L, -1));
-    // lua_pop(L, 1); // needed or not? advised to use but not necessary ??
-  }
-  mavlinkTelemetryBuffer.setDestination(internal ? 0 : TELEMETRY_ENDPOINT_SPORT);
-  lua_pushboolean(L, true);
-  return 1;
 }
 
 
@@ -620,6 +684,7 @@ static int luaMavlinkPushPacket(lua_State* L)
 
 extern "C" {
 LROT_BEGIN(mavlinklib, NULL, 0)
+  LROT_FUNCENTRY( mavlinkInit, luaMavlinkInit )
   LROT_FUNCENTRY( mavlinkPop, luaMavlinkPop )
   LROT_FUNCENTRY( mavlinkDecode, luaMavlinkDecode )
   LROT_FUNCENTRY( mavlinkEncode, luaMavlinkEncode )
