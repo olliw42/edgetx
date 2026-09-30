@@ -176,10 +176,12 @@ class MavlinkTelemetryBuffer {
     ~MavlinkTelemetryBuffer() { delete inputFifoPtr; delete outputFifoPtr; }
     DynamicFifo<uint8_t>* inputFifoPtr = nullptr;
     DynamicFifo<uint8_t>* outputFifoPtr = nullptr;
+    uint32_t rx_fifo_size = 0;
+    uint32_t tx_fifo_size = 0;
 
     uint32_t outputFifoSize(void) { return (outputFifoPtr) ? outputFifoPtr->size() : 0; }
 
-    bool Init(uint32_t rx_fifo_size, uint32_t tx_fifo_size);
+    bool Init(uint32_t _rx_fifo_size, uint32_t _tx_fifo_size);
 };
 
 extern MavlinkTelemetryBuffer mavlinkTelemetryBuffer;

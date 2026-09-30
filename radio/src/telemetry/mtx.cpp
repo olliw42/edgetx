@@ -15,24 +15,36 @@
 MavlinkTelemetryBuffer mavlinkTelemetryBuffer;
 
 
-bool MavlinkTelemetryBuffer::Init(uint32_t rx_fifo_size, uint32_t tx_fifo_size)
+bool MavlinkTelemetryBuffer::Init(uint32_t _rx_fifo_size, uint32_t _tx_fifo_size)
 {
+    if (inputFifoPtr && (rx_fifo_size == _rx_fifo_size) &&
+        outputFifoPtr && (tx_fifo_size == _tx_fifo_size)) {
+        return true;
+    }
+
     if (inputFifoPtr || outputFifoPtr) return false; // allowed to only be called once
 
-
     // sanitize, sizes must be 2^N
-    if (rx_fifo_size == 0 || (rx_fifo_size & (rx_fifo_size - 1)) != 0) {
+    if (_rx_fifo_size == 0 || (_rx_fifo_size & (_rx_fifo_size - 1)) != 0) {
         return false;
     }
-    if (tx_fifo_size == 0 || (tx_fifo_size & (tx_fifo_size - 1)) != 0) {
+    if (_tx_fifo_size == 0 || (_tx_fifo_size & (_tx_fifo_size - 1)) != 0) {
         return false;
     }
 
     // allocate
-    inputFifoPtr = new DynamicFifo<uint8_t>(rx_fifo_size);
-    outputFifoPtr = new DynamicFifo<uint8_t>(tx_fifo_size);
+    inputFifoPtr = new DynamicFifo<uint8_t>(_rx_fifo_size);
+    outputFifoPtr = new DynamicFifo<uint8_t>(_tx_fifo_size);
 
-    if (!inputFifoPtr || !outputFifoPtr) return false;
+    if (!inputFifoPtr || !outputFifoPtr) {
+        if (inputFifoPtr) delete inputFifoPtr;
+        if (outputFifoPtr) delete outputFifoPtr;
+        inputFifoPtr = outputFifoPtr = nullptr;
+        return false;
+    }
+
+    rx_fifo_size = _rx_fifo_size;
+    tx_fifo_size = _tx_fifo_size;
 
     return true;
 }
