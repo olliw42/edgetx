@@ -10,7 +10,7 @@ local widgetName = "mTX MavTelem Widget"
 
 
 local VERSION = {
-    script = '2026-09-30.00', -- add a '.01' if needed for the day
+    script = '2026-10-01.00', -- add a '.01' if needed for the day
 }
 
 
@@ -170,7 +170,7 @@ local function doIt()
     if not mavsdk.Vehicle.is_connected and not mavsdk.Vehicle.is_armed then
         tfirst_connect_10ms = 0
         send_banner = false
-        request_stream_rates = true
+        request_stream_rates = false
     end
 
     if mavsdk.Vehicle.connected_has_changed then
